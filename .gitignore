@@ -1,0 +1,26 @@
+# Dependencies & build output
+node_modules
+dist
+dist-ssr
+.vite
+coverage
+*.tsbuildinfo
+
+# Local env & secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Cloudflare / Wrangler
+.wrangler
+.dev.vars
+
+# OS & editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+
+# Agent scratch (defensive)
+.agents/

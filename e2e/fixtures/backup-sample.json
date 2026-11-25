@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "exportedAt": "2026-11-28T09:00:00.000Z",
+  "profile": {
+    "age": 29,
+    "sex": "male",
+    "heightCm": 175,
+    "activityLevel": "desk",
+    "startWeightKg": 84.0,
+    "startDate": "2026-11-24",
+    "targetWeightKg": 65.0,
+    "targetDate": "2027-06-15",
+    "caffeineCutoffHour": 18
+  },
+  "targets": {
+    "calories": 1800,
+    "proteinG": 160,
+    "carbsG": 165,
+    "fatG": 55,
+    "weekNumber": 2
+  },
+  "presets": [
+    {
+      "id": "preset-black-coffee",
+      "name": "Black Coffee",
+      "servingLabel": "1 cup (240ml)",
+      "calories": 5,
+      "proteinG": 0,
+      "carbsG": 0,
+      "fatG": 0,
+      "isCaffeinated": true,
+      "category": "drink"
+    },
+    {
+      "id": "preset-active-whey-1",
+      "name": "Active Whey Protein (1 scoop)",
+      "servingLabel": "1 scoop (32.4g)",
+      "calories": 124,
+      "proteinG": 24,
+      "carbsG": 3,
+      "fatG": 2,
+      "isCaffeinated": false,
+      "category": "protein"
+    },
+    {
+      "id": "preset-tuna-can",
+      "name": "Tuna Can",
+      "servingLabel": "1 can",
+      "calories": 130,
+      "proteinG": 28,
+      "carbsG": 0,
+      "fatG": 1,
+      "isCaffeinated": false,
+      "category": "custom"
+    }
+  ],
+  "meals": [
+    {
+      "id": "meal-backup-oats",
+      "date": "2026-11-25",
+      "time": "08:30",
+      "name": "Oats",
+      "calories": 320,
+      "proteinG": 14,
+      "carbsG": 54,
+      "fatG": 6,
+      "source": "manual",
+      "isCaffeinated": false,
+      "createdAt": "2026-11-25T00:30:00.000Z"
+    }
+  ],
+  "workouts": [
+    {
+      "id": "workout-backup-sat",
+      "date": "2026-11-28",
+      "dayType": "offday_sat_lower",
+      "title": "Saturday — Lower & Incline Walk",
+      "exercises": [
+        {
+          "exerciseId": "barbell_back_squat",
+          "name": "Barbell Back Squat",
+          "equipment": "barbell",
+          "defaultRestSec": 180,
+          "sets": [
+            {
+              "setNumber": 1,
+              "targetRepsMin": 6,
+              "targetRepsMax": 8,
+              "weightKg": 80,
+              "reps": 8,
+              "completed": true
+            },
+            {
+              "setNumber": 2,
+              "targetRepsMin": 6,
+              "targetRepsMax": 8,
+              "weightKg": 80,
+              "reps": 8,
+              "completed": true
+            },
+            {
+              "setNumber": 3,
+              "targetRepsMin": 6,
+              "targetRepsMax": 8,
+              "weightKg": 80,
+              "reps": 8,
+              "completed": true
+            },
+            {
+              "setNumber": 4,
+              "targetRepsMin": 6,
+              "targetRepsMax": 8,
+              "weightKg": 80,
+              "reps": 8,
+              "completed": true
+            }
+          ]
+        }
+      ],
+      "cardio": [
+        {
+          "id": "cardio-backup-sat",
+          "mode": "incline_walk",
+          "durationMin": 30,
+          "inclinePct": 8,
+          "speedKph": 4.5,
+          "bodyWeightKgUsed": 81.5,
+          "estimatedCaloriesBurned": 245
+        }
+      ],
+      "completed": true,
+      "completedAt": "2026-11-28T08:30:00.000Z"
+    }
+  ],
+  "weighIns": [
+    {
+      "id": "weighin-2026-11-24",
+      "date": "2026-11-24",
+      "weightKg": 84.0,
+      "isFasted": true,
+      "createdAt": "2026-11-24T07:00:00.000Z"
+    },
+    {
+      "id": "weighin-2026-11-28",
+      "date": "2026-11-28",
+      "weightKg": 81.5,
+      "isFasted": true,
+      "createdAt": "2026-11-28T07:00:00.000Z"
+    }
+  ],
+  "settings": {
+    "geminiApiEndpointMode": "direct",
+    "notificationsEnabled": false
+  }
+}
