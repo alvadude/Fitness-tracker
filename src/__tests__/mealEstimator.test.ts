@@ -405,4 +405,63 @@ describe('mealEstimator service & imageResize', () => {
       actionableHint: expect.stringMatching(/GEMINI_API_KEY/i),
     });
   });
+
+  it('automatically falls back to the next Gemini model when primary model returns 503 high demand', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: {
+              message: 'This model is currently experiencing high demand.',
+            },
+          }),
+          { status: 503 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        mealName: 'Fallback Meal',
+                        items: [
+                          {
+                            name: 'Egg Sandwich',
+                            portion: '1 whole',
+                            calories: 320,
+                            proteinG: 16,
+                            carbsG: 34,
+                            fatG: 12,
+                          },
+                        ],
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await estimateMealFromImage({
+      imageBase64: 'YWJj',
+      mimeType: 'image/jpeg',
+      apiKey: 'AIza-test',
+      endpointMode: 'direct',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('gemini-3.8-flash');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('gemini-3.6-flash');
+    expect(result.modelUsed).toBe('gemini-3.6-flash');
+    expect(result.mealName).toBe('Fallback Meal');
+  });
 });

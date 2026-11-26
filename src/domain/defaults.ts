@@ -57,6 +57,7 @@ export const DEFAULT_EQUIPMENT: string[] = [
 
 export const DEFAULT_SETTINGS: AppSettings = {
   geminiApiEndpointMode: 'direct',
+  geminiModelPreference: 'auto',
   notificationsEnabled: false,
   availableEquipment: [...DEFAULT_EQUIPMENT],
 };

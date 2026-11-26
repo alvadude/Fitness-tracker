@@ -275,4 +275,37 @@ describe('AI Weekly Workout Planner, Equipment Checklist & Daily Status Ticks', 
     expect(screen.getByText('1 Completed')).toBeInTheDocument();
     expect(screen.getByText('1 Partial')).toBeInTheDocument();
   });
+
+  it('generates an instant equipment-aware 7-day plan offline without calling Gemini', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const repo = new IndexedDbRepository({
+      localStorageKey: 'test_offline_smart_planner',
+    });
+    render(
+      <App repository={repo} initialTab="training" initialDate="2026-12-03" />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('Loading fitness data...'),
+      ).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('tab', { name: /AI Weekly Plan/i }));
+    await user.click(
+      screen.getByRole('button', { name: /Instant Smart Plan/i }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Instant Smart Plan generated locally/i),
+      ).toBeInTheDocument();
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByText('Lower Body Strength + Cardio')).toBeInTheDocument();
+    expect(screen.getByText('Upper Body Push & Pull')).toBeInTheDocument();
+  });
 });

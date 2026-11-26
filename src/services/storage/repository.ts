@@ -540,6 +540,14 @@ export function validateBackupPayload(raw: unknown): FitnessBackupPayload {
   const settings: AppSettings = {
     geminiApiEndpointMode:
       s.geminiApiEndpointMode === 'proxy' ? 'proxy' : 'direct',
+    geminiModelPreference:
+      s.geminiModelPreference === 'auto' ||
+      s.geminiModelPreference === 'gemini-3.8-flash' ||
+      s.geminiModelPreference === 'gemini-3.6-flash' ||
+      s.geminiModelPreference === 'gemini-3.5-flash' ||
+      s.geminiModelPreference === 'gemini-3.5-flash-lite'
+        ? s.geminiModelPreference
+        : 'auto',
     notificationsEnabled: Boolean(s.notificationsEnabled),
     lastDailyReminderDate:
       typeof s.lastDailyReminderDate === 'string' &&

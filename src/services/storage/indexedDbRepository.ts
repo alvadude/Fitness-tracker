@@ -351,6 +351,9 @@ export class IndexedDbRepository implements FitnessStorageAdapter {
       weighIns: cloneState(state.weighIns),
       settings: {
         geminiApiEndpointMode: state.settings.geminiApiEndpointMode,
+        ...(state.settings.geminiModelPreference
+          ? { geminiModelPreference: state.settings.geminiModelPreference }
+          : {}),
         notificationsEnabled: state.settings.notificationsEnabled,
         lastDailyReminderDate: state.settings.lastDailyReminderDate,
         lastWeeklyReminderDate: state.settings.lastWeeklyReminderDate,

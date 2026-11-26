@@ -1,8 +1,16 @@
-import type { MacroTotals, MealItemBreakdown } from '../../domain/types';
+import type {
+  GeminiModelPreference,
+  MacroTotals,
+  MealItemBreakdown,
+} from '../../domain/types';
 import { getStoredGeminiApiKey } from '../storage';
+import {
+  fetchGeminiWithFallback,
+  GEMINI_ENDPOINT,
+  GEMINI_MODEL,
+} from './geminiClient';
 
-export const GEMINI_MODEL = 'gemini-3.8-flash';
-export const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+export { GEMINI_ENDPOINT, GEMINI_MODEL };
 export const PROXY_ENDPOINT = '/api/analyze-meal';
 export const PORTION_MULTIPLIERS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 
@@ -40,6 +48,7 @@ export interface EstimateMealInput {
   contextText?: string;
   apiKey?: string;
   endpointMode?: 'direct' | 'proxy';
+  modelPreference?: GeminiModelPreference;
   signal?: AbortSignal;
 }
 
@@ -48,6 +57,7 @@ export interface EstimateMealResult {
   items: MealItemBreakdown[];
   totals: MacroTotals;
   notes?: string;
+  modelUsed?: string;
 }
 
 export const GEMINI_MEAL_RESPONSE_SCHEMA = {
@@ -442,20 +452,35 @@ export async function estimateMealFromImage(
   const mode = input.endpointMode ?? 'direct';
   const mimeType = input.mimeType?.trim() || 'image/jpeg';
 
-  let url: string;
-  let headers: Record<string, string>;
-  let body: string;
+  let response: Response;
+  let modelUsed: string | undefined;
 
   if (mode === 'proxy') {
-    url = PROXY_ENDPOINT;
-    headers = {
-      'Content-Type': 'application/json',
-    };
-    body = JSON.stringify({
+    const body = JSON.stringify({
       imageBase64: input.imageBase64,
       mimeType,
       contextText: input.contextText?.trim() || undefined,
+      modelPreference: input.modelPreference,
     });
+    try {
+      response = await fetch(PROXY_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        signal: input.signal,
+      });
+    } catch (err: unknown) {
+      if (isAbortError(err)) {
+        throw err;
+      }
+      throw new MealEstimatorError(
+        'NETWORK_ERROR',
+        'Unable to reach the meal estimator service.',
+        {
+          actionableHint: 'Check your internet connection and retry.',
+        },
+      );
+    }
   } else {
     const apiKey = resolveGeminiApiKey(input.apiKey);
     if (!apiKey) {
@@ -469,52 +494,44 @@ export async function estimateMealFromImage(
       );
     }
 
-    url = GEMINI_ENDPOINT;
-    headers = {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey,
-    };
-    body = JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: buildMealEstimationPrompt(input.contextText) },
-            {
-              inlineData: {
-                mimeType,
-                data: input.imageBase64,
+    try {
+      const result = await fetchGeminiWithFallback({
+        apiKey,
+        modelPreference: input.modelPreference,
+        contents: [
+          {
+            parts: [
+              { text: buildMealEstimationPrompt(input.contextText) },
+              {
+                inlineData: {
+                  mimeType,
+                  data: input.imageBase64,
+                },
               },
-            },
-          ],
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: 'application/json',
+          responseSchema: GEMINI_MEAL_RESPONSE_SCHEMA,
         },
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        responseMimeType: 'application/json',
-        responseSchema: GEMINI_MEAL_RESPONSE_SCHEMA,
-      },
-    });
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body,
-      signal: input.signal,
-    });
-  } catch (err: unknown) {
-    if (isAbortError(err)) {
-      throw err;
+        signal: input.signal,
+      });
+      response = result.response;
+      modelUsed = result.modelUsed;
+    } catch (err: unknown) {
+      if (isAbortError(err)) {
+        throw err;
+      }
+      throw new MealEstimatorError(
+        'NETWORK_ERROR',
+        'Unable to reach the meal estimator service.',
+        {
+          actionableHint: 'Check your internet connection and retry.',
+        },
+      );
     }
-    throw new MealEstimatorError(
-      'NETWORK_ERROR',
-      'Unable to reach the meal estimator service.',
-      {
-        actionableHint: 'Check your internet connection and retry.',
-      },
-    );
   }
 
   if (!response.ok) {
@@ -538,5 +555,9 @@ export async function estimateMealFromImage(
     );
   }
 
-  return parseMealEstimatePayload(jsonPayload);
+  const parsed = parseMealEstimatePayload(jsonPayload);
+  return {
+    ...parsed,
+    ...(modelUsed ? { modelUsed } : {}),
+  };
 }

@@ -7,8 +7,12 @@ interface PagesContext {
   env: Env;
 }
 
-const GEMINI_ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent';
+const GEMINI_FALLBACK_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+] as const;
 const MAX_BASE64_LENGTH = 8_000_000;
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
@@ -122,36 +126,62 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   const mimeType = ALLOWED_MIME_TYPES.has(rawMime) ? rawMime : 'image/jpeg';
   const contextText =
     typeof record.contextText === 'string' ? record.contextText : undefined;
+  const preferred =
+    typeof record.modelPreference === 'string' ? record.modelPreference : 'auto';
+  const modelOrder =
+    preferred &&
+    preferred !== 'auto' &&
+    (GEMINI_FALLBACK_MODELS as readonly string[]).includes(preferred)
+      ? [preferred, ...GEMINI_FALLBACK_MODELS.filter((m) => m !== preferred)]
+      : [...GEMINI_FALLBACK_MODELS];
 
-  let geminiRes: Response;
+  let geminiRes: Response | null = null;
   try {
-    geminiRes = await fetch(GEMINI_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: buildPrompt(contextText) },
-              {
-                inlineData: {
-                  mimeType,
-                  data: imageBase64,
-                },
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: 'application/json',
-          responseSchema: RESPONSE_SCHEMA,
+    for (const model of modelOrder) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
         },
-      }),
-    });
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: buildPrompt(contextText) },
+                {
+                  inlineData: {
+                    mimeType,
+                    data: imageBase64,
+                  },
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: 'application/json',
+            responseSchema: RESPONSE_SCHEMA,
+            thinkingConfig: { thinkingLevel: 'LOW' },
+          },
+        }),
+      });
+      geminiRes = res;
+      if (res.ok) {
+        break;
+      }
+      if (
+        res.status !== 404 &&
+        res.status !== 429 &&
+        res.status !== 500 &&
+        res.status !== 502 &&
+        res.status !== 503 &&
+        res.status !== 504
+      ) {
+        break;
+      }
+    }
   } catch {
     return jsonResponse(
       { error: 'Failed to connect to Gemini API.', code: 'NETWORK_ERROR' },
@@ -159,16 +189,15 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     );
   }
 
-  if (!geminiRes.ok) {
+  if (!geminiRes || !geminiRes.ok) {
+    const rawStatus = geminiRes?.status ?? 502;
     const status =
-      geminiRes.status === 401 ||
-      geminiRes.status === 403 ||
-      geminiRes.status === 429
-        ? geminiRes.status
+      rawStatus === 401 || rawStatus === 403 || rawStatus === 429
+        ? rawStatus
         : 502;
     return jsonResponse(
       {
-        error: `Gemini API returned status ${geminiRes.status}.`,
+        error: `Gemini API returned status ${rawStatus}.`,
         code: status === 429 ? 'RATE_LIMITED' : 'UPSTREAM_ERROR',
       },
       status,

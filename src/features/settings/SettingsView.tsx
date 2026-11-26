@@ -6,7 +6,11 @@ import {
 } from 'react';
 import { calculateRecommendedTargets } from '../../domain/nutrition';
 import { parseIsoDateLocal } from '../../domain/training';
-import type { MacroTargets, UserProfile } from '../../domain/types';
+import type {
+  GeminiModelPreference,
+  MacroTargets,
+  UserProfile,
+} from '../../domain/types';
 import { getProfileSetupInviteUrl } from '../profiles/ProfileSwitcherModal';
 import {
   DAILY_REMINDER_BODY,
@@ -351,6 +355,18 @@ export function SettingsView({
       mode === 'direct'
         ? 'Switched AI endpoint mode to Direct Browser API.'
         : 'Switched AI endpoint mode to Cloudflare Proxy (/api/analyze-meal).',
+    );
+  };
+
+  const handleModelPreferenceChange = async (
+    modelPreference: GeminiModelPreference,
+  ) => {
+    setApiStatus(null);
+    await updateSettings({ geminiModelPreference: modelPreference });
+    setApiStatus(
+      modelPreference === 'auto'
+        ? 'AI model set to Auto (automatic fallback chain on high demand).'
+        : `Preferred Gemini model set to ${modelPreference} (with automatic fallback).`,
     );
   };
 
@@ -1061,6 +1077,33 @@ export function SettingsView({
               Cloudflare Proxy
             </button>
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label
+            htmlFor="gemini-model-preference"
+            className="block text-xs text-slate-400"
+          >
+            Gemini Model (Auto-Fallback on High Demand)
+          </label>
+          <select
+            id="gemini-model-preference"
+            value={state.settings.geminiModelPreference ?? 'auto'}
+            onChange={(e) =>
+              void handleModelPreferenceChange(
+                e.target.value as GeminiModelPreference,
+              )
+            }
+            className="min-h-[44px] w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 focus:border-emerald-500 focus:outline-none"
+          >
+            <option value="auto">Auto — Fallback Chain (Recommended)</option>
+            <option value="gemini-3.5-flash-lite">
+              Gemini 3.5 Flash-Lite (Fastest / Least Busy)
+            </option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash (Latest)</option>
+            <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
+            <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+          </select>
         </div>
 
         <div className="space-y-1.5">

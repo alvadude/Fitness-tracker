@@ -152,6 +152,7 @@ export interface WeeklyWorkoutPlan {
   goalSummary: string;
   equipmentUsed: string[];
   customNotes?: string;
+  modelUsed?: string;
   days: PlannedWorkoutDay[];
   dailyStatusByDate: Record<IsoDate, WorkoutCompletionStatus>;
 }
@@ -179,8 +180,16 @@ export interface WeighInEntry {
   createdAt: IsoTimestamp;
 }
 
+export type GeminiModelPreference =
+  | 'auto'
+  | 'gemini-3.8-flash'
+  | 'gemini-3.6-flash'
+  | 'gemini-3.5-flash'
+  | 'gemini-3.5-flash-lite';
+
 export interface AppSettings {
   geminiApiEndpointMode: 'direct' | 'proxy';
+  geminiModelPreference?: GeminiModelPreference;
   notificationsEnabled: boolean;
   lastDailyReminderDate?: IsoDate;
   lastWeeklyReminderDate?: IsoDate;

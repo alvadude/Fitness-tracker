@@ -30,7 +30,10 @@ import type {
   WorkoutCompletionStatus,
 } from '../../domain/types';
 import { MealEstimatorError } from '../../services/ai/mealEstimator';
-import { generateWeeklyWorkoutPlan } from '../../services/ai/workoutPlanner';
+import {
+  buildOfflineSmartWeeklyPlan,
+  generateWeeklyWorkoutPlan,
+} from '../../services/ai/workoutPlanner';
 import { useFitness } from '../../state/FitnessContext';
 
 export interface WeeklyPlannerPanelProps {
@@ -167,6 +170,7 @@ export function WeeklyPlannerPanel({
         currentWeightKg,
         availableEquipment: selectedEquipment,
         preferences,
+        modelPreference: state.settings.geminiModelPreference,
         apiKey: explicitKey ?? (geminiApiKey || undefined),
       });
 
@@ -177,7 +181,9 @@ export function WeeklyPlannerPanel({
         dailyStatusByDate: { ...preservedStatuses },
       });
       setShowKeyRecovery(false);
-      setPlanStatus('Weekly workout plan generated with Gemini.');
+      setPlanStatus(
+        `Weekly workout plan generated with ${generated.modelUsed ?? 'Gemini'}.`,
+      );
     } catch (err: unknown) {
       if (
         err instanceof MealEstimatorError &&
@@ -193,6 +199,27 @@ export function WeeklyPlannerPanel({
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleGenerateOfflinePlan = async () => {
+    setPlanError(null);
+    setPlanStatus(null);
+    const offlinePlan = buildOfflineSmartWeeklyPlan({
+      profile: state.profile,
+      targets: state.targets,
+      currentWeightKg,
+      availableEquipment: selectedEquipment,
+      preferences,
+    });
+    const preservedStatuses = state.weeklyPlan?.dailyStatusByDate ?? {};
+    await saveWeeklyPlan({
+      ...offlinePlan,
+      dailyStatusByDate: { ...preservedStatuses },
+    });
+    setShowKeyRecovery(false);
+    setPlanStatus(
+      'Instant Smart Plan generated locally using your checked equipment.',
+    );
   };
 
   const handleSaveKeyAndGenerate = () => {
@@ -462,6 +489,16 @@ export function WeeklyPlannerPanel({
             </button>
           )}
         </div>
+
+        <button
+          type="button"
+          disabled={isGenerating}
+          onClick={() => void handleGenerateOfflinePlan()}
+          className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/80 px-4 text-xs font-semibold text-slate-200 transition-colors hover:bg-slate-700 disabled:opacity-60"
+        >
+          <Dumbbell className="h-3.5 w-3.5 text-emerald-400" />
+          <span>Instant Smart Plan (Offline — No API Needed)</span>
+        </button>
       </div>
 
       {/* 3. 7-Day Plan & Daily Completion Tracker */}

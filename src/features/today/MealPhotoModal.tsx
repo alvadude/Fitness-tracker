@@ -224,6 +224,7 @@ export function MealPhotoModal({
         contextText: contextText.trim() || undefined,
         apiKey: explicitApiKey ?? (geminiApiKey || undefined),
         endpointMode: state.settings.geminiApiEndpointMode,
+        modelPreference: state.settings.geminiModelPreference,
         signal: controller.signal,
       });
 
