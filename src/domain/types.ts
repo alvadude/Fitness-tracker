@@ -123,6 +123,39 @@ export type WorkoutDayType =
   | 'offday_sun_upper'
   | 'offday_mon_full';
 
+export type WorkoutCompletionStatus = 'not_completed' | 'partial' | 'completed';
+
+export type WeekdayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export interface PlannedWorkoutExercise {
+  name: string;
+  equipment: string;
+  sets: number;
+  reps: string;
+  notes?: string;
+}
+
+export interface PlannedWorkoutDay {
+  dayOfWeek: WeekdayIndex;
+  dayName: string;
+  focus: string;
+  isRestDay: boolean;
+  estimatedDurationMin: number;
+  exercises: PlannedWorkoutExercise[];
+  cardioNote?: string;
+  coachingTip?: string;
+}
+
+export interface WeeklyWorkoutPlan {
+  id: string;
+  generatedAt: IsoTimestamp;
+  goalSummary: string;
+  equipmentUsed: string[];
+  customNotes?: string;
+  days: PlannedWorkoutDay[];
+  dailyStatusByDate: Record<IsoDate, WorkoutCompletionStatus>;
+}
+
 export interface WorkoutSession {
   id: string;
   date: IsoDate;
@@ -131,6 +164,7 @@ export interface WorkoutSession {
   exercises: ExerciseLog[];
   cardio: CardioLog[];
   completed: boolean;
+  completionStatus?: WorkoutCompletionStatus;
   sleepHours?: number;
   notes?: string;
   completedAt?: IsoTimestamp;
@@ -150,6 +184,7 @@ export interface AppSettings {
   notificationsEnabled: boolean;
   lastDailyReminderDate?: IsoDate;
   lastWeeklyReminderDate?: IsoDate;
+  availableEquipment?: string[];
 }
 
 export interface FitnessAppState {
@@ -162,6 +197,7 @@ export interface FitnessAppState {
   workouts: WorkoutSession[];
   weighIns: WeighInEntry[];
   settings: AppSettings;
+  weeklyPlan?: WeeklyWorkoutPlan;
 }
 
 export interface FitnessBackupPayload {
@@ -174,6 +210,7 @@ export interface FitnessBackupPayload {
   workouts: WorkoutSession[];
   weighIns: WeighInEntry[];
   settings: AppSettings;
+  weeklyPlan?: WeeklyWorkoutPlan;
 }
 
 export type EveningAdviceType =

@@ -9,8 +9,12 @@ import type {
   MacroTargets,
   MealEntry,
   MealItemBreakdown,
+  PlannedWorkoutDay,
   UserProfile,
+  WeekdayIndex,
+  WeeklyWorkoutPlan,
   WeighInEntry,
+  WorkoutCompletionStatus,
   WorkoutSession,
 } from '../../domain/types';
 
@@ -26,6 +30,7 @@ export interface FitnessStorageAdapter {
   upsertWeighIn(weighIn: WeighInEntry): Promise<void>;
   deleteWeighIn(weighInId: string): Promise<void>;
   saveSettings(settings: AppSettings): Promise<void>;
+  saveWeeklyPlan?(plan: WeeklyWorkoutPlan | undefined): Promise<void>;
   exportBackup(): Promise<FitnessBackupPayload>;
   importBackup(rawPayload: unknown): Promise<FitnessAppState>;
   resetToSeed(): Promise<FitnessAppState>;
@@ -489,6 +494,12 @@ export function validateBackupPayload(raw: unknown): FitnessBackupPayload {
       exercises,
       cardio,
       completed: Boolean(item.completed),
+      completionStatus:
+        item.completionStatus === 'completed' ||
+        item.completionStatus === 'partial' ||
+        item.completionStatus === 'not_completed'
+          ? item.completionStatus
+          : undefined,
       sleepHours:
         typeof item.sleepHours === 'number' && Number.isFinite(item.sleepHours)
           ? item.sleepHours
@@ -540,7 +551,89 @@ export function validateBackupPayload(raw: unknown): FitnessBackupPayload {
       isValidIsoDate(s.lastWeeklyReminderDate)
         ? s.lastWeeklyReminderDate
         : undefined,
+    availableEquipment: Array.isArray(s.availableEquipment)
+      ? s.availableEquipment.filter(
+          (eq): eq is string => typeof eq === 'string' && eq.trim().length > 0,
+        )
+      : undefined,
   };
+
+  let weeklyPlan: WeeklyWorkoutPlan | undefined;
+  if (isRecord(raw.weeklyPlan) && Array.isArray(raw.weeklyPlan.days)) {
+    const wp = raw.weeklyPlan;
+    const rawDays: unknown[] = raw.weeklyPlan.days;
+    const dailyStatusByDate: Record<string, WorkoutCompletionStatus> = {};
+    if (isRecord(wp.dailyStatusByDate)) {
+      for (const [k, v] of Object.entries(wp.dailyStatusByDate)) {
+        if (
+          isValidIsoDate(k) &&
+          (v === 'completed' || v === 'partial' || v === 'not_completed')
+        ) {
+          dailyStatusByDate[k] = v;
+        }
+      }
+    }
+    const days: PlannedWorkoutDay[] = rawDays
+      .filter((d): d is Record<string, unknown> => isRecord(d))
+      .map((d, idx) => ({
+        dayOfWeek:
+          typeof d.dayOfWeek === 'number' &&
+          Number.isInteger(d.dayOfWeek) &&
+          d.dayOfWeek >= 0 &&
+          d.dayOfWeek <= 6
+            ? (d.dayOfWeek as WeekdayIndex)
+            : ((idx % 7) as WeekdayIndex),
+        dayName: typeof d.dayName === 'string' ? d.dayName : 'Day',
+        focus: typeof d.focus === 'string' ? d.focus : 'Workout',
+        isRestDay: Boolean(d.isRestDay),
+        estimatedDurationMin:
+          typeof d.estimatedDurationMin === 'number' &&
+          Number.isFinite(d.estimatedDurationMin)
+            ? Math.max(0, Math.round(d.estimatedDurationMin))
+            : 0,
+        exercises: Array.isArray(d.exercises)
+          ? (d.exercises as unknown[])
+              .filter((ex): ex is Record<string, unknown> => isRecord(ex))
+              .map((ex) => ({
+                name: typeof ex.name === 'string' ? ex.name : 'Exercise',
+                equipment:
+                  typeof ex.equipment === 'string' ? ex.equipment : 'Bodyweight',
+                sets:
+                  typeof ex.sets === 'number' && ex.sets >= 1
+                    ? Math.round(ex.sets)
+                    : 3,
+                reps: typeof ex.reps === 'string' ? ex.reps : '8-12',
+                notes: typeof ex.notes === 'string' ? ex.notes : undefined,
+              }))
+          : [],
+        cardioNote:
+          typeof d.cardioNote === 'string' ? d.cardioNote : undefined,
+        coachingTip:
+          typeof d.coachingTip === 'string' ? d.coachingTip : undefined,
+      }));
+
+    if (days.length > 0) {
+      weeklyPlan = {
+        id:
+          typeof wp.id === 'string' && wp.id.trim()
+            ? wp.id.trim()
+            : `plan-restored`,
+        generatedAt:
+          typeof wp.generatedAt === 'string'
+            ? wp.generatedAt
+            : new Date().toISOString(),
+        goalSummary:
+          typeof wp.goalSummary === 'string' ? wp.goalSummary : 'Weekly plan',
+        equipmentUsed: Array.isArray(wp.equipmentUsed)
+          ? wp.equipmentUsed.filter((e): e is string => typeof e === 'string')
+          : [],
+        customNotes:
+          typeof wp.customNotes === 'string' ? wp.customNotes : undefined,
+        days,
+        dailyStatusByDate,
+      };
+    }
+  }
 
   return {
     schemaVersion: 1,
@@ -552,5 +645,6 @@ export function validateBackupPayload(raw: unknown): FitnessBackupPayload {
     workouts,
     weighIns,
     settings,
+    ...(weeklyPlan ? { weeklyPlan } : {}),
   };
 }

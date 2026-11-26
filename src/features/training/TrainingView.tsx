@@ -8,17 +8,20 @@ import {
   Clock,
   Dumbbell,
   Moon,
+  Sparkles,
 } from 'lucide-react';
 import {
   addDaysIsoDate,
   formatIsoDateLocal,
   getDayTypeForDate,
   isWorkday,
+  parseIsoDateLocal,
 } from '../../domain/training';
 import type {
   CardioLog,
   ExerciseLog,
   IsoDate,
+  WorkoutCompletionStatus,
   WorkoutSession,
 } from '../../domain/types';
 import { useFitness } from '../../state/FitnessContext';
@@ -28,6 +31,7 @@ import {
   type RestTimerExternalStart,
 } from './RestTimer';
 import { TreadmillLogger } from './TreadmillLogger';
+import { WeeklyPlannerPanel } from './WeeklyPlannerPanel';
 import { WorkoutLogger } from './WorkoutLogger';
 
 const HOME_GYM_EQUIPMENT = [
@@ -46,7 +50,10 @@ export function TrainingView() {
     getOrCreateWorkoutForDate,
     saveWorkout,
     logCardioForDate,
+    setDailyPlanStatus,
   } = useFitness();
+
+  const [subTab, setSubTab] = useState<'daily' | 'planner'>('daily');
 
   const storedSession = state.workouts.find((w) => w.date === selectedDate);
   const baseSession = storedSession ?? getOrCreateWorkoutForDate(selectedDate);
@@ -209,10 +216,24 @@ export function TrainingView() {
       return {
         ...latest,
         completed: nextCompleted,
+        completionStatus: nextCompleted ? 'completed' : 'not_completed',
         completedAt: nextCompleted ? new Date().toISOString() : undefined,
       };
     });
   };
+
+  const handleSetDailyStatus = (status: WorkoutCompletionStatus) => {
+    void setDailyPlanStatus(selectedDate, status);
+  };
+
+  const currentDailyStatus: WorkoutCompletionStatus =
+    state.weeklyPlan?.dailyStatusByDate[selectedDate] ??
+    session.completionStatus ??
+    (session.completed ? 'completed' : 'not_completed');
+
+  const plannedDayForSelectedDate = state.weeklyPlan?.days.find(
+    (d) => d.dayOfWeek === parseIsoDateLocal(selectedDate).getDay(),
+  );
 
   const persistSleepValue = (raw: string) => {
     const trimmed = raw.trim();
@@ -320,7 +341,46 @@ export function TrainingView() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 space-y-3">
+      <div
+        className="grid grid-cols-2 gap-1.5 rounded-2xl border border-slate-800 bg-slate-900/80 p-1.5"
+        role="tablist"
+        aria-label="Training view sections"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={subTab === 'daily'}
+          onClick={() => setSubTab('daily')}
+          className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-colors ${
+            subTab === 'daily'
+              ? 'bg-emerald-500 text-slate-950'
+              : 'text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          <Dumbbell className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Daily Log</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={subTab === 'planner'}
+          onClick={() => setSubTab('planner')}
+          className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-colors ${
+            subTab === 'planner'
+              ? 'bg-cyan-500 text-slate-950'
+              : 'text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>AI Weekly Plan</span>
+        </button>
+      </div>
+
+      {subTab === 'planner' ? (
+        <WeeklyPlannerPanel onJumpToDailyLog={() => setSubTab('daily')} />
+      ) : (
+        <>
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <button
@@ -382,6 +442,68 @@ export function TrainingView() {
           <h2 className="text-base font-semibold text-slate-100">
             {session.title}
           </h2>
+
+          {plannedDayForSelectedDate && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs">
+              <div className="min-w-0 flex-1 text-cyan-200">
+                <span className="font-semibold">AI Plan:</span>{' '}
+                {plannedDayForSelectedDate.focus}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSubTab('planner')}
+                className="shrink-0 font-semibold text-cyan-300 underline underline-offset-2"
+              >
+                View Plan
+              </button>
+            </div>
+          )}
+
+          <div
+            className="grid grid-cols-3 gap-1.5 pt-1"
+            role="group"
+            aria-label="Daily workout status"
+          >
+            <button
+              type="button"
+              aria-label="Set daily status: Completed"
+              aria-pressed={currentDailyStatus === 'completed'}
+              onClick={() => handleSetDailyStatus('completed')}
+              className={`min-h-[40px] rounded-xl border px-2 text-xs font-semibold transition-colors ${
+                currentDailyStatus === 'completed'
+                  ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                  : 'border-slate-700 bg-slate-950/70 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Done
+            </button>
+            <button
+              type="button"
+              aria-label="Set daily status: Partially Completed"
+              aria-pressed={currentDailyStatus === 'partial'}
+              onClick={() => handleSetDailyStatus('partial')}
+              className={`min-h-[40px] rounded-xl border px-2 text-xs font-semibold transition-colors ${
+                currentDailyStatus === 'partial'
+                  ? 'border-amber-400 bg-amber-500/20 text-amber-300'
+                  : 'border-slate-700 bg-slate-950/70 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Partial
+            </button>
+            <button
+              type="button"
+              aria-label="Set daily status: Not Completed"
+              aria-pressed={currentDailyStatus === 'not_completed'}
+              onClick={() => handleSetDailyStatus('not_completed')}
+              className={`min-h-[40px] rounded-xl border px-2 text-xs font-semibold transition-colors ${
+                currentDailyStatus === 'not_completed'
+                  ? 'border-slate-500 bg-slate-800 text-slate-100'
+                  : 'border-slate-700 bg-slate-950/70 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Not Done
+            </button>
+          </div>
         </div>
       </div>
 
@@ -483,6 +605,19 @@ export function TrainingView() {
             </form>
           </div>
 
+          {session.exercises.length > 0 && (
+            <>
+              <RestTimer externalStart={timerTrigger} />
+              <WorkoutLogger
+                exercises={session.exercises}
+                selectedDate={selectedDate}
+                workouts={state.workouts}
+                onSaveExercises={handleSaveExercises}
+                onSetCompleted={handleStartRestTimer}
+              />
+            </>
+          )}
+
           <TreadmillLogger
             date={selectedDate}
             dayType={dayType}
@@ -551,6 +686,8 @@ export function TrainingView() {
           {session.completed ? 'Workout Completed' : 'Complete Workout'}
         </span>
       </button>
+        </>
+      )}
     </section>
   );
 }

@@ -31,9 +31,34 @@ export const DEFAULT_TARGETS: MacroTargets = {
   weekNumber: 1,
 };
 
+export const AVAILABLE_EQUIPMENT_OPTIONS = [
+  'Bodyweight (No Equipment)',
+  'Adjustable Dumbbells',
+  'Barbell & Plates',
+  'Squat Rack',
+  'Weight Bench',
+  'Treadmill',
+  'Resistance Bands',
+  'Kettlebell',
+  'Pull-Up Bar',
+  'Yoga / Exercise Mat',
+  'Jump Rope',
+  'Stationary Bike',
+] as const;
+
+export const DEFAULT_EQUIPMENT: string[] = [
+  'Bodyweight (No Equipment)',
+  'Adjustable Dumbbells',
+  'Barbell & Plates',
+  'Squat Rack',
+  'Weight Bench',
+  'Treadmill',
+];
+
 export const DEFAULT_SETTINGS: AppSettings = {
   geminiApiEndpointMode: 'direct',
   notificationsEnabled: false,
+  availableEquipment: [...DEFAULT_EQUIPMENT],
 };
 
 export const DEFAULT_FOOD_PRESETS: FoodPreset[] = [

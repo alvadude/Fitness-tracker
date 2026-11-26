@@ -25,7 +25,9 @@ import type {
   MacroTargets,
   MealEntry,
   UserProfile,
+  WeeklyWorkoutPlan,
   WeighInEntry,
+  WorkoutCompletionStatus,
   WorkoutSession,
 } from '../domain/types';
 import {
@@ -82,6 +84,11 @@ export interface FitnessContextValue {
   updateProfile: (profile: UserProfile) => Promise<void>;
   updateTargets: (targets: MacroTargets) => Promise<void>;
   updateSettings: (partial: Partial<AppSettings>) => Promise<void>;
+  saveWeeklyPlan: (plan: WeeklyWorkoutPlan | undefined) => Promise<void>;
+  setDailyPlanStatus: (
+    date: IsoDate,
+    status: WorkoutCompletionStatus,
+  ) => Promise<void>;
   saveGeminiApiKey: (key: string) => void;
   exportBackupJson: () => Promise<string>;
   importBackupJson: (jsonText: string) => Promise<void>;
@@ -480,6 +487,81 @@ export function FitnessProvider({
     [enqueueMutation, hydrateRepo, repo],
   );
 
+  const saveWeeklyPlan = useCallback(
+    (plan: WeeklyWorkoutPlan | undefined) =>
+      enqueueMutation(async () => {
+        const current = await hydrateRepo(repo);
+        if (typeof repo.saveWeeklyPlan === 'function') {
+          await repo.saveWeeklyPlan(plan);
+        }
+        const nextState: FitnessAppState = {
+          ...current,
+          weeklyPlan: plan,
+        };
+        if (activeRepoRef.current === repo) {
+          stateRef.current = nextState;
+          setState(nextState);
+        }
+      }),
+    [enqueueMutation, hydrateRepo, repo],
+  );
+
+  const setDailyPlanStatus = useCallback(
+    (date: IsoDate, status: WorkoutCompletionStatus) =>
+      enqueueMutation(async () => {
+        const current = await hydrateRepo(repo);
+
+        let nextWeeklyPlan = current.weeklyPlan;
+        if (nextWeeklyPlan) {
+          nextWeeklyPlan = {
+            ...nextWeeklyPlan,
+            dailyStatusByDate: {
+              ...nextWeeklyPlan.dailyStatusByDate,
+              [date]: status,
+            },
+          };
+          if (typeof repo.saveWeeklyPlan === 'function') {
+            await repo.saveWeeklyPlan(nextWeeklyPlan);
+          }
+        }
+
+        const existingWorkout = current.workouts.find((w) => w.date === date);
+        const baseWorkout =
+          existingWorkout ??
+          createWorkoutTemplateForDayType(
+            getDayTypeForDate(date),
+            date,
+            computeCurrentWeightKg(current),
+          );
+        const updatedWorkout: WorkoutSession = {
+          ...baseWorkout,
+          completed: status === 'completed',
+          completionStatus: status,
+          completedAt:
+            status === 'completed'
+              ? baseWorkout.completedAt ?? new Date().toISOString()
+              : undefined,
+        };
+        await repo.upsertWorkout(updatedWorkout);
+
+        const exists = current.workouts.some((w) => w.id === updatedWorkout.id);
+        const nextState: FitnessAppState = {
+          ...current,
+          weeklyPlan: nextWeeklyPlan,
+          workouts: exists
+            ? current.workouts.map((w) =>
+                w.id === updatedWorkout.id ? updatedWorkout : w,
+              )
+            : [...current.workouts, updatedWorkout],
+        };
+        if (activeRepoRef.current === repo) {
+          stateRef.current = nextState;
+          setState(nextState);
+        }
+      }),
+    [enqueueMutation, hydrateRepo, repo],
+  );
+
   const saveGeminiApiKey = useCallback((key: string) => {
     setStoredGeminiApiKey(key);
     setGeminiApiKey(key.trim());
@@ -618,6 +700,8 @@ export function FitnessProvider({
       updateProfile,
       updateTargets,
       updateSettings,
+      saveWeeklyPlan,
+      setDailyPlanStatus,
       saveGeminiApiKey,
       exportBackupJson,
       importBackupJson,
@@ -644,6 +728,8 @@ export function FitnessProvider({
       updateProfile,
       updateTargets,
       updateSettings,
+      saveWeeklyPlan,
+      setDailyPlanStatus,
       saveGeminiApiKey,
       exportBackupJson,
       importBackupJson,

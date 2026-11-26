@@ -11,6 +11,7 @@ import type {
   MacroTargets,
   MealEntry,
   UserProfile,
+  WeeklyWorkoutPlan,
   WeighInEntry,
   WorkoutSession,
 } from '../../domain/types';
@@ -322,8 +323,17 @@ export class IndexedDbRepository implements FitnessStorageAdapter {
   async saveSettings(settings: AppSettings): Promise<void> {
     await this.enqueue(async () => {
       const state =
-        (await this.readPersistedState()) ?? createInitialSeedState();
+        (await this.readPersistedState()) ?? this.initialStateFactory();
       state.settings = cloneState(settings);
+      await this.writePersistedState(state);
+    });
+  }
+
+  async saveWeeklyPlan(plan: WeeklyWorkoutPlan | undefined): Promise<void> {
+    await this.enqueue(async () => {
+      const state =
+        (await this.readPersistedState()) ?? this.initialStateFactory();
+      state.weeklyPlan = plan ? cloneState(plan) : undefined;
       await this.writePersistedState(state);
     });
   }
@@ -344,7 +354,11 @@ export class IndexedDbRepository implements FitnessStorageAdapter {
         notificationsEnabled: state.settings.notificationsEnabled,
         lastDailyReminderDate: state.settings.lastDailyReminderDate,
         lastWeeklyReminderDate: state.settings.lastWeeklyReminderDate,
+        ...(state.settings.availableEquipment
+          ? { availableEquipment: [...state.settings.availableEquipment] }
+          : {}),
       },
+      ...(state.weeklyPlan ? { weeklyPlan: cloneState(state.weeklyPlan) } : {}),
     };
   }
 
@@ -360,6 +374,9 @@ export class IndexedDbRepository implements FitnessStorageAdapter {
       workouts: cloneState(validated.workouts),
       weighIns: cloneState(validated.weighIns),
       settings: cloneState(validated.settings),
+      ...(validated.weeklyPlan
+        ? { weeklyPlan: cloneState(validated.weeklyPlan) }
+        : {}),
     };
     return this.enqueue(async () => {
       await this.writePersistedState(restored);
