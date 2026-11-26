@@ -8,7 +8,7 @@ interface PagesContext {
 }
 
 const GEMINI_ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent';
 const MAX_BASE64_LENGTH = 8_000_000;
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
@@ -178,12 +178,13 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   try {
     const data = (await geminiRes.json()) as {
       candidates?: Array<{
-        content?: { parts?: Array<{ text?: string }> };
+        content?: { parts?: Array<{ text?: string; thought?: boolean }> };
       }>;
     };
     const text =
       data.candidates?.[0]?.content?.parts
-        ?.map((p) => (typeof p.text === 'string' ? p.text : ''))
+        ?.filter((p) => p.thought !== true)
+        .map((p) => (typeof p.text === 'string' ? p.text : ''))
         .join('')
         .trim() ?? '';
 

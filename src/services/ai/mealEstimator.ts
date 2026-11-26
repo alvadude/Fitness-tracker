@@ -1,7 +1,7 @@
 import type { MacroTotals, MealItemBreakdown } from '../../domain/types';
 import { getStoredGeminiApiKey } from '../storage';
 
-export const GEMINI_MODEL = 'gemini-2.5-flash';
+export const GEMINI_MODEL = 'gemini-3.8-flash';
 export const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 export const PROXY_ENDPOINT = '/api/analyze-meal';
 export const PORTION_MULTIPLIERS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
@@ -304,7 +304,7 @@ export function parseMealEstimatePayload(rawJson: unknown): EstimateMealResult {
 
     if (Array.isArray(obj.candidates)) {
       const firstCandidate = obj.candidates[0] as
-        | { content?: { parts?: Array<{ text?: unknown }> } }
+        | { content?: { parts?: Array<{ text?: unknown; thought?: unknown }> } }
         | undefined;
       const parts = firstCandidate?.content?.parts;
       if (!Array.isArray(parts) || parts.length === 0) {
@@ -317,6 +317,7 @@ export function parseMealEstimatePayload(rawJson: unknown): EstimateMealResult {
         );
       }
       const joinedText = parts
+        .filter((p) => p?.thought !== true)
         .map((p) => (typeof p?.text === 'string' ? p.text : ''))
         .join('')
         .trim();

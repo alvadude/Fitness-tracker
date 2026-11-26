@@ -496,7 +496,7 @@ test.describe('Tier 1 — F10: Smart Evening Advisor Contextual Card', () => {
 });
 
 test.describe('Tier 1 — F11: AI Meal Photo Upload & Gemini Request Pipeline', () => {
-  test('T1-F11-01: Upload photo sends structured request to gemini-2.5-flash', async ({ page }) => {
+  test('T1-F11-01: Upload photo sends structured request to gemini-3.8-flash', async ({ page }) => {
     await setAppClock(page, '2026-11-28T12:00:00');
     const aiMock = await mockAiEndpoints(page, {
       kind: 'success',
@@ -513,7 +513,7 @@ test.describe('Tier 1 — F11: AI Meal Photo Upload & Gemini Request Pipeline', 
 
     await expect(modal.getByText(/Chicken Breast/i)).toBeVisible();
     expect(aiMock.requests.length).toBe(1);
-    expect(aiMock.requests[0]?.url).toContain('gemini-2.5-flash');
+    expect(aiMock.requests[0]?.url).toContain('gemini-3.8-flash');
     expect(aiMock.requests[0]?.rawBody).toContain('inlineData');
   });
 

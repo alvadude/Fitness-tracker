@@ -29,7 +29,7 @@ export interface AiRouteController {
   unroute: () => Promise<void>;
 }
 
-const GEMINI_PATTERN = '**/v1beta/models/gemini-2.5-flash*';
+const GEMINI_PATTERN = '**/v1beta/models/gemini-3.8-flash*';
 const PROXY_PATTERN = '**/api/analyze-meal*';
 
 function parseBodySafe(raw: string): unknown {

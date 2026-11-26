@@ -24,12 +24,17 @@ afterEach(() => {
 });
 
 describe('mealEstimator service & imageResize', () => {
-  it('submits structured JSON request to gemini-2.5-flash with optional context and parses breakdown', async () => {
+  it('submits structured JSON request to gemini-3.8-flash with optional context and parses breakdown', async () => {
+    expect(GEMINI_ENDPOINT).toContain('gemini-3.8-flash');
     const geminiPayload = {
       candidates: [
         {
           content: {
             parts: [
+              {
+                thought: true,
+                text: 'Internal reasoning ignored',
+              },
               {
                 text: JSON.stringify({
                   mealName: 'Chicken & Rice Bowl',
