@@ -892,7 +892,7 @@ describe('SettingsView (Profile, Targets, Gemini, Backup & Reset)', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('Restored initial Nov 24–25 seed data.'),
+        screen.getByText('Restored initial Nov 24–26 seed data.'),
       ).toBeInTheDocument();
     });
     expect(screen.getByText('18:00')).toBeInTheDocument();

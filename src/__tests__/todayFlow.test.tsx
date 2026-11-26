@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 describe('Today View & AI Meal Photo end-to-end flow', () => {
-  it('renders Nov 24 seed macros, net calorie badge, and switches to Nov 25', async () => {
+  it('renders Nov 24 seed macros, net calorie badge, and switches to Nov 25 and Nov 26', async () => {
     const user = userEvent.setup();
     const repo = createTestRepo('seed_nav');
     render(<App repository={repo} initialDate="2026-11-24" />);
@@ -55,20 +55,39 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
     await waitFor(() => {
       expect(screen.getByText('Daily Macros · 2026-11-25')).toBeInTheDocument();
     });
-    expect(screen.getByText('35')).toBeInTheDocument();
-    expect(screen.getByText('1865 kcal left')).toBeInTheDocument();
+    expect(screen.getByText('2630')).toBeInTheDocument();
+    expect(screen.getByText('730 kcal over')).toBeInTheDocument();
+    expect(screen.getByText(/Burned 575 kcal · Net 2055 kcal/i)).toBeInTheDocument();
+    expect(screen.getByText('Meals (9)')).toBeInTheDocument();
     expect(
       screen.getByText('Black coffee + 1 mini Meiji matcha chocolate'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Post-Game Meal — Chicken pastil (1 serving)'),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Next day' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Daily Macros · 2026-11-26')).toBeInTheDocument();
+    });
+    expect(screen.getByText('560')).toBeInTheDocument();
+    expect(screen.getByText('1340 kcal left')).toBeInTheDocument();
+    expect(screen.getByText('Meals (1)')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Breakfast — Grande Starbucks Café Latte + butter croissant + strawberry jam & butter pats',
+      ),
     ).toBeInTheDocument();
   });
 
   it('logs quick-add presets and saves custom presets from manual entry', async () => {
     const user = userEvent.setup();
     const repo = createTestRepo('presets');
-    render(<App repository={repo} initialDate="2026-11-25" />);
+    render(<App repository={repo} initialDate="2026-11-26" />);
 
     await waitFor(() => {
-      expect(screen.getByText('Daily Macros · 2026-11-25')).toBeInTheDocument();
+      expect(screen.getByText('Daily Macros · 2026-11-26')).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: /Quick Add/i }));
@@ -85,7 +104,7 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
         screen.queryByRole('dialog', { name: 'Quick Add Meal' }),
       ).not.toBeInTheDocument();
     });
-    expect(screen.getByText('40')).toBeInTheDocument();
+    expect(screen.getByText('565')).toBeInTheDocument();
 
     // Manual entry + save as custom preset
     await user.click(screen.getByRole('button', { name: /Manual/i }));
@@ -116,7 +135,7 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
         screen.queryByRole('dialog', { name: 'Quick Add Meal' }),
       ).not.toBeInTheDocument();
     });
-    expect(screen.getByText('180')).toBeInTheDocument();
+    expect(screen.getByText('705')).toBeInTheDocument();
 
     // Verify custom preset is available and deletable
     await user.click(screen.getByRole('button', { name: /Quick Add/i }));
@@ -145,10 +164,10 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
   it('triggers after-6:00 PM caffeine warning and offers 1-tap switch to Caffeine-Free', async () => {
     const user = userEvent.setup();
     const repo = createTestRepo('caffeine_warning');
-    render(<App repository={repo} initialDate="2026-11-25" />);
+    render(<App repository={repo} initialDate="2026-11-26" />);
 
     await waitFor(() => {
-      expect(screen.getByText('Daily Macros · 2026-11-25')).toBeInTheDocument();
+      expect(screen.getByText('Daily Macros · 2026-11-26')).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: /Quick Add/i }));
@@ -183,33 +202,36 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
     expect(
       screen.getByText('Active Whey Protein (2 scoops, Caffeine-Free)'),
     ).toBeInTheDocument();
-    expect(screen.getByText('283')).toBeInTheDocument();
-    expect(screen.getByText('48g')).toBeInTheDocument();
+    expect(screen.getByText('808')).toBeInTheDocument();
+    expect(screen.getByText('63g')).toBeInTheDocument();
   });
 
   it('supports editing, duplicating, and deleting meals with live macro recalculation', async () => {
     const user = userEvent.setup();
     const repo = createTestRepo('meal_crud');
-    render(<App repository={repo} initialDate="2026-11-25" />);
+    render(<App repository={repo} initialDate="2026-11-26" />);
 
     await waitFor(() => {
-      expect(screen.getByText('Daily Macros · 2026-11-25')).toBeInTheDocument();
+      expect(screen.getByText('Daily Macros · 2026-11-26')).toBeInTheDocument();
     });
 
-    // Duplicate seeded meal (35 kcal -> 70 kcal)
+    const breakfastName =
+      'Breakfast — Grande Starbucks Café Latte + butter croissant + strawberry jam & butter pats';
+
+    // Duplicate seeded meal (560 kcal -> 1120 kcal)
     await user.click(
       screen.getByRole('button', {
-        name: 'Duplicate Black coffee + 1 mini Meiji matcha chocolate',
+        name: `Duplicate ${breakfastName}`,
       }),
     );
     await waitFor(() => {
       expect(screen.getByText('Meals (2)')).toBeInTheDocument();
     });
-    expect(screen.getByText('70')).toBeInTheDocument();
+    expect(screen.getByText('1120')).toBeInTheDocument();
 
     // Edit first meal
     const editButtons = screen.getAllByRole('button', {
-      name: 'Edit Black coffee + 1 mini Meiji matcha chocolate',
+      name: `Edit ${breakfastName}`,
     });
     await user.click(editButtons[0]);
     const editDialog = screen.getByRole('dialog', { name: 'Edit Meal' });
@@ -221,7 +243,7 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('135')).toBeInTheDocument();
+      expect(screen.getByText('660')).toBeInTheDocument();
       expect(
         screen.queryByRole('dialog', { name: 'Edit Meal' }),
       ).not.toBeInTheDocument();
@@ -229,7 +251,7 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
 
     // Delete second meal
     const deleteButtons = screen.getAllByRole('button', {
-      name: 'Remove Black coffee + 1 mini Meiji matcha chocolate',
+      name: `Remove ${breakfastName}`,
     });
     await user.click(deleteButtons[1]);
 
@@ -242,13 +264,13 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
   it('executes Smart Evening Advisor 1-tap whey and incline walk actions', async () => {
     const user = userEvent.setup();
     const repo = createTestRepo('advisor');
-    render(<App repository={repo} initialDate="2026-11-25" />);
+    render(<App repository={repo} initialDate="2026-11-26" />);
 
     await waitFor(() => {
-      expect(screen.getByText('Daily Macros · 2026-11-25')).toBeInTheDocument();
+      expect(screen.getByText('Daily Macros · 2026-11-26')).toBeInTheDocument();
     });
 
-    // On Nov 25 (1865 kcal left, 160g protein left), advisor recommends 2 scoops whey
+    // On Nov 26 (1340 kcal left, 145g protein left), advisor recommends 2 scoops whey
     expect(
       screen.getByText('2 Scoops Caffeine-Free Active Whey'),
     ).toBeInTheDocument();
@@ -257,11 +279,11 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('283')).toBeInTheDocument();
+      expect(screen.getByText('808')).toBeInTheDocument();
     });
-    expect(screen.getByText('48g')).toBeInTheDocument();
+    expect(screen.getByText('63g')).toBeInTheDocument();
 
-    // Now switch to Nov 24, delete cardio or add surplus meal to trigger cardio_offset
+    // Now switch to Nov 24 to verify cardio_offset action
     await user.click(screen.getByRole('button', { name: 'Nov 24' }));
     await waitFor(() => {
       expect(screen.getByText('Daily Macros · 2026-11-24')).toBeInTheDocument();
@@ -289,10 +311,10 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
   it('runs AI Meal Photo Estimator flow with missing-key recovery, multiplier scaling, and item edits', async () => {
     const user = userEvent.setup();
     const repo = createTestRepo('ai_photo');
-    render(<App repository={repo} initialDate="2026-11-25" />);
+    render(<App repository={repo} initialDate="2026-11-26" />);
 
     await waitFor(() => {
-      expect(screen.getByText('Daily Macros · 2026-11-25')).toBeInTheDocument();
+      expect(screen.getByText('Daily Macros · 2026-11-26')).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: /AI Meal Photo/i }));
@@ -398,8 +420,8 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
       ).not.toBeInTheDocument();
     });
     expect(screen.getByText('Skinless Chicken & Rice')).toBeInTheDocument();
-    // 35 seeded + 610 AI meal = 645
-    expect(screen.getByText('645')).toBeInTheDocument();
+    // 560 seeded + 610 AI meal = 1170
+    expect(screen.getByText('1170')).toBeInTheDocument();
   });
 
   it('aborts in-flight AI analysis on photo swap and ignores stale responses', async () => {
@@ -499,9 +521,9 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
     vi.spyOn(Date.prototype, 'getMinutes').mockReturnValue(30);
 
     const repo = createTestRepo('cleared_time_caffeine');
-    render(<App repository={repo} initialDate="2026-11-25" />);
+    render(<App repository={repo} initialDate="2026-11-26" />);
     await waitFor(() => {
-      expect(screen.getByText('Daily Macros · 2026-11-25')).toBeInTheDocument();
+      expect(screen.getByText('Daily Macros · 2026-11-26')).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: /Quick Add/i }));
@@ -543,7 +565,12 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
       screen.queryByText(/Logged \d+m incline walk/i),
     ).not.toBeInTheDocument();
 
-    // Also test Previous day clearing advisorStatus
+    // Advance to Nov 26 (where 2 scoops whey advisor CTA is shown) and test Previous day clearing advisorStatus
+    await user.click(screen.getByRole('button', { name: 'Next day' }));
+    await waitFor(() => {
+      expect(screen.getByText('Daily Macros · 2026-11-26')).toBeInTheDocument();
+    });
+
     await user.click(
       screen.getByRole('button', { name: 'Add 2 Scoops Caffeine-Free Whey' }),
     );
@@ -555,7 +582,7 @@ describe('Today View & AI Meal Photo end-to-end flow', () => {
 
     await user.click(screen.getByRole('button', { name: 'Previous day' }));
     await waitFor(() => {
-      expect(screen.getByText('Daily Macros · 2026-11-24')).toBeInTheDocument();
+      expect(screen.getByText('Daily Macros · 2026-11-25')).toBeInTheDocument();
     });
     expect(
       screen.queryByText('Logged 2 scoops caffeine-free Active Whey.'),

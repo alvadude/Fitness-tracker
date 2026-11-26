@@ -71,6 +71,7 @@ export interface MealEntry {
   isCaffeinated: boolean;
   caffeineVariant?: 'caffeinated' | 'caffeine-free';
   notes?: string;
+  photoUrl?: string;
   aiItems?: MealItemBreakdown[];
   createdAt: IsoTimestamp;
 }
@@ -92,11 +93,12 @@ export interface ExerciseLog {
   sets: ExerciseSetLog[];
 }
 
-export type CardioMode = 'incline_walk' | 'interval_run' | 'easy_walk';
+export type CardioMode = 'incline_walk' | 'interval_run' | 'easy_walk' | 'sport';
 
 export interface CardioLog {
   id: string;
   mode: CardioMode;
+  activityLabel?: string;
   durationMin: number;
   inclinePct: number;
   speedKph: number;
@@ -144,6 +146,7 @@ export interface AppSettings {
 
 export interface FitnessAppState {
   initialized: boolean;
+  seedRevision?: number;
   profile: UserProfile;
   targets: MacroTargets;
   presets: FoodPreset[];

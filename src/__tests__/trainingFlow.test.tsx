@@ -21,7 +21,7 @@ async function renderTrainingApp(storageKey: string, initialDate: string) {
 }
 
 describe('TrainingView, WorkoutLogger, TreadmillLogger & RestTimer', () => {
-  it('shows workday recovery, Nov 24 seeded treadmill log, and persists Wed Nov 25 sleep + easy walk across remount', async () => {
+  it('shows workday recovery, Nov 24 treadmill log, Nov 25 Pickleball session, and persists Thu Nov 26 sleep + easy walk across remount', async () => {
     const user = userEvent.setup();
     const key = 'test_training_workday_recovery';
 
@@ -40,7 +40,15 @@ describe('TrainingView, WorkoutLogger, TreadmillLogger & RestTimer', () => {
       screen.getByText(/22 min @ 8%, 4\.5 kph = 185 kcal/i),
     ).toBeInTheDocument();
 
-    // Navigate to Wed Nov 25
+    // Navigate to Wed Nov 25 (seeded Pickleball session)
+    await user.click(screen.getByRole('button', { name: 'Next day' }));
+    expect(
+      screen.getByText('Wednesday — Pickleball Session'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Pickleball')).toBeInTheDocument();
+    expect(screen.getByText(/120 min = 575 kcal/i)).toBeInTheDocument();
+
+    // Navigate to Thu Nov 26 (unlogged workday)
     await user.click(screen.getByRole('button', { name: 'Next day' }));
     expect(
       screen.getByText('Workday — Active Recovery & Sleep'),
@@ -67,7 +75,7 @@ describe('TrainingView, WorkoutLogger, TreadmillLogger & RestTimer', () => {
     unmount();
 
     // Remount with fresh repository reading persisted storage
-    await renderTrainingApp(key, '2026-11-25');
+    await renderTrainingApp(key, '2026-11-26');
     expect(screen.getByLabelText('Sleep (hours)')).toHaveValue(7.5);
     expect(screen.getByText(/7\.5h logged · >=7h goal met/i)).toBeInTheDocument();
     expect(screen.getByText(/15 min @ 3%, 4\.2 kph =/i)).toBeInTheDocument();
@@ -385,7 +393,7 @@ describe('TrainingView, WorkoutLogger, TreadmillLogger & RestTimer', () => {
       <App
         repository={delayedRepo}
         initialTab="training"
-        initialDate="2026-11-25"
+        initialDate="2026-11-26"
       />,
     );
     await waitFor(() => {
@@ -401,10 +409,10 @@ describe('TrainingView, WorkoutLogger, TreadmillLogger & RestTimer', () => {
 
     await waitFor(async () => {
       const persisted = await baseRepo.getState();
-      const wed = persisted.workouts.find((w) => w.date === '2026-11-25');
-      expect(wed?.completed).toBe(true);
-      expect(wed?.cardio).toHaveLength(1);
-      expect(wed?.cardio[0]?.durationMin).toBe(15);
+      const thu = persisted.workouts.find((w) => w.date === '2026-11-26');
+      expect(thu?.completed).toBe(true);
+      expect(thu?.cardio).toHaveLength(1);
+      expect(thu?.cardio[0]?.durationMin).toBe(15);
     });
 
     expect(
@@ -650,7 +658,7 @@ describe('TrainingView, WorkoutLogger, TreadmillLogger & RestTimer', () => {
       <App
         repository={delayedRepo}
         initialTab="training"
-        initialDate="2026-11-25"
+        initialDate="2026-11-26"
       />,
     );
     await waitFor(() => {
@@ -663,11 +671,11 @@ describe('TrainingView, WorkoutLogger, TreadmillLogger & RestTimer', () => {
       screen.getByRole('button', { name: /Complete Workout/i }),
     );
 
-    // Immediately navigate A (2026-11-25) -> B (2026-11-26) -> A (2026-11-25) while write is in-flight
+    // Immediately navigate A (2026-11-26) -> B (2026-11-27) -> A (2026-11-26) while write is in-flight
     await user.click(screen.getByRole('button', { name: 'Next day' }));
-    expect(screen.getByText('2026-11-26')).toBeInTheDocument();
+    expect(screen.getByText('2026-11-27')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Previous day' }));
-    expect(screen.getByText('2026-11-25')).toBeInTheDocument();
+    expect(screen.getByText('2026-11-26')).toBeInTheDocument();
 
     const sleepInput = screen.getByLabelText('Sleep (hours)');
     await user.type(sleepInput, '7.5');
@@ -675,9 +683,9 @@ describe('TrainingView, WorkoutLogger, TreadmillLogger & RestTimer', () => {
 
     await waitFor(async () => {
       const persisted = await baseRepo.getState();
-      const wed = persisted.workouts.find((w) => w.date === '2026-11-25');
-      expect(wed?.completed).toBe(true);
-      expect(wed?.sleepHours).toBe(7.5);
+      const thu = persisted.workouts.find((w) => w.date === '2026-11-26');
+      expect(thu?.completed).toBe(true);
+      expect(thu?.sleepHours).toBe(7.5);
     });
 
     expect(

@@ -215,7 +215,7 @@ describe('FitnessContext serialized mutation queue', () => {
 
     await act(async () => {
       await Promise.all([
-        result.current.logCardioForDate('2026-11-25', {
+        result.current.logCardioForDate('2026-11-26', {
           mode: 'easy_walk',
           durationMin: 15,
           inclinePct: 4,
@@ -224,7 +224,7 @@ describe('FitnessContext serialized mutation queue', () => {
           estimatedCaloriesBurned: 90,
           notes: 'Morning walk',
         }),
-        result.current.logCardioForDate('2026-11-25', {
+        result.current.logCardioForDate('2026-11-26', {
           mode: 'incline_walk',
           durationMin: 20,
           inclinePct: 8,
@@ -237,7 +237,7 @@ describe('FitnessContext serialized mutation queue', () => {
     });
 
     const ctxWorkout = result.current.state.workouts.find(
-      (w) => w.date === '2026-11-25',
+      (w) => w.date === '2026-11-26',
     );
     expect(ctxWorkout).toBeDefined();
     expect(ctxWorkout?.cardio).toHaveLength(2);
@@ -248,7 +248,7 @@ describe('FitnessContext serialized mutation queue', () => {
 
     const persistedAfterCardio = await repo.getState();
     const repoWorkout = persistedAfterCardio.workouts.find(
-      (w) => w.date === '2026-11-25',
+      (w) => w.date === '2026-11-26',
     );
     expect(repoWorkout).toBeDefined();
     expect(repoWorkout?.cardio).toHaveLength(2);

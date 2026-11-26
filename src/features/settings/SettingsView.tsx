@@ -96,6 +96,7 @@ export function SettingsView() {
     saveGeminiApiKey,
     exportBackupJson,
     importBackupJson,
+    appendLogsFromImport,
     resetAllToSeed,
   } = useFitness();
 
@@ -124,6 +125,11 @@ export function SettingsView() {
   const [backupError, setBackupError] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState<boolean>(false);
   const [isBusyBackup, setIsBusyBackup] = useState<boolean>(false);
+
+  const [appendText, setAppendText] = useState<string>('');
+  const [appendStatus, setAppendStatus] = useState<string | null>(null);
+  const [appendError, setAppendError] = useState<string | null>(null);
+  const [isBusyAppend, setIsBusyAppend] = useState<boolean>(false);
 
   const [syncedProfile, setSyncedProfile] = useState<UserProfile>(state.profile);
   const [syncedTargets, setSyncedTargets] = useState<MacroTargets>(state.targets);
@@ -406,6 +412,64 @@ export function SettingsView() {
     }
   };
 
+  const handleAppendLogs = async () => {
+    setAppendError(null);
+    setAppendStatus(null);
+    setIsBusyAppend(true);
+    try {
+      const summary = await appendLogsFromImport(appendText);
+      const parts: string[] = [];
+      if (summary.addedMeals > 0) {
+        parts.push(
+          `${summary.addedMeals} meal${summary.addedMeals === 1 ? '' : 's'}`,
+        );
+      }
+      if (summary.addedWorkouts > 0) {
+        parts.push(
+          `${summary.addedWorkouts} workout${summary.addedWorkouts === 1 ? '' : 's'}`,
+        );
+      }
+      if (summary.addedWeighIns > 0) {
+        parts.push(
+          `${summary.addedWeighIns} weigh-in${summary.addedWeighIns === 1 ? '' : 's'}`,
+        );
+      }
+      const addedMsg =
+        parts.length > 0 ? `Added ${parts.join(', ')}` : 'No new entries added';
+      const skippedMsg =
+        summary.skippedMeals > 0
+          ? ` (skipped ${summary.skippedMeals} duplicate${summary.skippedMeals === 1 ? '' : 's'})`
+          : '';
+      setAppendStatus(`${addedMsg}${skippedMsg}.`);
+      setAppendText('');
+    } catch (err: unknown) {
+      setAppendError(
+        err instanceof Error ? err.message : 'Failed to parse log input.',
+      );
+    } finally {
+      setIsBusyAppend(false);
+    }
+  };
+
+  const handleLoadAppendFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    setAppendError(null);
+    setAppendStatus(null);
+    try {
+      const text = await readUploadedTextFile(file);
+      setAppendText(text);
+    } catch (err: unknown) {
+      setAppendError(
+        err instanceof Error ? err.message : 'Could not read selected file.',
+      );
+    } finally {
+      event.target.value = '';
+    }
+  };
+
   const handleConfirmReset = async () => {
     setBackupError(null);
     setBackupStatus(null);
@@ -413,7 +477,7 @@ export function SettingsView() {
     try {
       await resetAllToSeed();
       setConfirmReset(false);
-      setBackupStatus('Restored initial Nov 24–25 seed data.');
+      setBackupStatus('Restored initial Nov 24–26 seed data.');
     } catch (err: unknown) {
       setBackupError(
         err instanceof Error ? err.message : 'Failed to reset to seed data.',
@@ -972,14 +1036,87 @@ export function SettingsView() {
         </div>
       </div>
 
-      {/* 4. Data Backup & Reset */}
+      {/* 4. Append Daily Logs (Markdown / JSON Seed Importer) */}
+      <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+        <div className="space-y-1">
+          <h2 className="text-sm font-semibold text-slate-100">
+            Append Logs (Markdown / JSON)
+          </h2>
+          <p className="text-xs leading-relaxed text-slate-400">
+            Paste a chat-to-PWA Markdown handoff or JSON payload to append new
+            days without duplicating existing meals or workouts.
+          </p>
+        </div>
+
+        {appendError && (
+          <div
+            role="alert"
+            className="rounded-xl border border-rose-500/40 bg-rose-950/40 px-3 py-2 text-xs text-rose-200"
+          >
+            {appendError}
+          </div>
+        )}
+
+        {appendStatus && (
+          <div
+            role="status"
+            className="rounded-xl border border-emerald-500/40 bg-emerald-950/40 px-3 py-2 text-xs text-emerald-200"
+          >
+            {appendStatus}
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <label
+            htmlFor="append-logs-input"
+            className="block text-xs text-slate-400"
+          >
+            Markdown or JSON Log Payload
+          </label>
+          <textarea
+            id="append-logs-input"
+            rows={4}
+            value={appendText}
+            onChange={(e) => setAppendText(e.target.value)}
+            placeholder={
+              '## Friday, Nov 27, 2026\n1. **Breakfast — Oatmeal & eggs:** 420 kcal | 28g P | 45g C | 14g F'
+            }
+            className="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-xs text-slate-100 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={isBusyAppend}
+            onClick={() => void handleAppendLogs()}
+            className="min-h-[44px] flex-1 rounded-xl bg-emerald-500 px-4 text-xs font-semibold text-slate-950 transition-colors hover:bg-emerald-400 disabled:opacity-60"
+          >
+            {isBusyAppend ? 'Importing...' : 'Append Logs'}
+          </button>
+
+          <label className="flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl border border-slate-700 bg-slate-800 px-4 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-700">
+            <span>Load .md / .json</span>
+            <input
+              type="file"
+              accept=".md,.txt,.json,application/json,text/markdown,text/plain"
+              aria-label="Load Markdown or JSON log file"
+              disabled={isBusyAppend}
+              onChange={(e) => void handleLoadAppendFile(e)}
+              className="sr-only"
+            />
+          </label>
+        </div>
+      </div>
+
+      {/* 5. Data Backup & Reset */}
       <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
         <h2 className="text-sm font-semibold text-slate-100">
           Data Backup &amp; Reset
         </h2>
         <p className="text-xs leading-relaxed text-slate-400">
           Export your profile, targets, presets, meals, workouts, and weigh-ins
-          to JSON, restore from a backup file, or reset to the Nov 24–25 seed
+          to JSON, restore from a backup file, or reset to the Nov 24–26 seed
           data.
         </p>
 
@@ -1041,7 +1178,7 @@ export function SettingsView() {
             <div className="space-y-2 rounded-xl border border-rose-500/40 bg-rose-950/30 p-3">
               <p className="text-xs text-rose-200">
                 This will overwrite your logged meals, workouts, and weigh-ins
-                with the initial Nov 24–25, 2026 seed data.
+                with the initial Nov 24–26, 2026 seed data.
               </p>
               <div className="flex flex-wrap gap-2">
                 <button

@@ -25,11 +25,13 @@ export interface TreadmillLoggerProps {
 
 interface CardioFormState {
   mode: CardioMode;
+  activityLabel: string;
   durationMin: string;
   inclinePct: string;
   speedKph: string;
   jogSpeedKph: string;
   walkSpeedKph: string;
+  manualCalories: string;
   notes: string;
 }
 
@@ -58,42 +60,50 @@ function getDefaultFormState(dayType: WorkoutDayType): CardioFormState {
     case 'offday_sat_lower':
       return {
         mode: 'incline_walk',
+        activityLabel: 'Pickleball',
         durationMin: '30',
         inclinePct: '8',
         speedKph: '4.5',
         jogSpeedKph: '8.0',
         walkSpeedKph: '4.8',
+        manualCalories: '300',
         notes: '30 min @ 6–10% incline',
       };
     case 'offday_mon_full':
       return {
         mode: 'interval_run',
+        activityLabel: 'Pickleball',
         durationMin: '20',
         inclinePct: '1',
         speedKph: '5.9',
         jogSpeedKph: '8.0',
         walkSpeedKph: '4.8',
+        manualCalories: '300',
         notes: '1 min jog / 2 min walk',
       };
     case 'offday_sun_upper':
       return {
         mode: 'incline_walk',
+        activityLabel: 'Pickleball',
         durationMin: '20',
         inclinePct: '6',
         speedKph: '4.5',
         jogSpeedKph: '8.0',
         walkSpeedKph: '4.8',
+        manualCalories: '300',
         notes: '',
       };
     case 'workday_recovery':
     default:
       return {
         mode: 'easy_walk',
+        activityLabel: 'Pickleball',
         durationMin: '15',
         inclinePct: '3',
         speedKph: '4.2',
         jogSpeedKph: '8.0',
         walkSpeedKph: '4.8',
+        manualCalories: '300',
         notes: 'Optional 15–20 min easy treadmill walk',
       };
   }
@@ -102,11 +112,13 @@ function getDefaultFormState(dayType: WorkoutDayType): CardioFormState {
 function formFromCardioLog(log: CardioLog): CardioFormState {
   return {
     mode: log.mode,
+    activityLabel: log.activityLabel ?? 'Sport / Activity',
     durationMin: String(log.durationMin),
     inclinePct: String(log.inclinePct),
     speedKph: String(log.speedKph),
     jogSpeedKph: String(log.jogSpeedKph ?? 8.0),
     walkSpeedKph: String(log.walkSpeedKph ?? 4.8),
+    manualCalories: String(log.estimatedCaloriesBurned),
     notes: log.notes ?? '',
   };
 }
@@ -124,6 +136,8 @@ function formatModeLabel(mode: CardioMode): string {
       return 'Incline Treadmill Walk';
     case 'interval_run':
       return 'Treadmill Interval Running';
+    case 'sport':
+      return 'Sport / Activity';
     case 'easy_walk':
     default:
       return 'Easy Treadmill Walk';
@@ -136,6 +150,27 @@ function buildCardioPayload(
 ): { payload: Omit<CardioLog, 'id'>; isValid: boolean } {
   const durationMin = Math.round(parseNonNegNumber(form.durationMin));
   const inclinePct = Math.round(parseNonNegNumber(form.inclinePct) * 10) / 10;
+
+  if (form.mode === 'sport') {
+    const estimatedCaloriesBurned = Math.round(
+      parseNonNegNumber(form.manualCalories),
+    );
+    const activityLabel = form.activityLabel.trim() || 'Sport / Activity';
+    const isValid = durationMin > 0 && estimatedCaloriesBurned > 0;
+    return {
+      isValid,
+      payload: {
+        mode: 'sport',
+        activityLabel,
+        durationMin,
+        inclinePct: 0,
+        speedKph: 0,
+        bodyWeightKgUsed: effectiveWeightKg,
+        estimatedCaloriesBurned,
+        ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
+      },
+    };
+  }
 
   if (form.mode === 'interval_run') {
     const jogSpeedKph =
@@ -264,7 +299,9 @@ export function TreadmillLogger({
       setFormError(
         form.mode === 'interval_run'
           ? 'Enter duration, jog speed, and walk speed greater than 0.'
-          : 'Enter duration and speed greater than 0.',
+          : form.mode === 'sport'
+            ? 'Enter duration and estimated burn greater than 0.'
+            : 'Enter duration and speed greater than 0.',
       );
       return;
     }
@@ -324,11 +361,14 @@ export function TreadmillLogger({
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-[11px] font-semibold text-cyan-300">
-                      {formatModeLabel(log.mode)}
+                      {log.mode === 'sport'
+                        ? log.activityLabel || formatModeLabel(log.mode)
+                        : formatModeLabel(log.mode)}
                     </span>
                     <span className="text-xs font-semibold text-slate-100">
-                      {log.durationMin} min @ {log.inclinePct}%, {log.speedKph}{' '}
-                      kph = {log.estimatedCaloriesBurned} kcal
+                      {log.mode === 'sport'
+                        ? `${log.durationMin} min = ${log.estimatedCaloriesBurned} kcal`
+                        : `${log.durationMin} min @ ${log.inclinePct}%, ${log.speedKph} kph = ${log.estimatedCaloriesBurned} kcal`}
                     </span>
                   </div>
                   {log.mode === 'interval_run' &&
@@ -383,6 +423,7 @@ export function TreadmillLogger({
                 { value: 'easy_walk', label: 'Easy Walk' },
                 { value: 'incline_walk', label: 'Incline Walk' },
                 { value: 'interval_run', label: 'Interval Run' },
+                { value: 'sport', label: 'Sport / Activity' },
               ] as const
             ).map((opt) => {
               const active = form.mode === opt.value;
@@ -423,82 +464,126 @@ export function TreadmillLogger({
             />
           </label>
 
-          <label className="block min-w-0">
-            <span className="mb-1 block text-[11px] font-medium text-slate-400">
-              Incline (%)
-            </span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.5"
-              value={form.inclinePct}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, inclinePct: e.target.value }))
-              }
-              className="min-h-[44px] w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950/80 px-3 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
-            />
-          </label>
-
-          {form.mode === 'interval_run' ? (
+          {form.mode === 'sport' ? (
             <>
               <label className="block min-w-0">
                 <span className="mb-1 block text-[11px] font-medium text-slate-400">
-                  Jog Speed (kph)
+                  Estimated Burn (kcal)
                 </span>
                 <input
                   type="number"
-                  inputMode="decimal"
+                  inputMode="numeric"
                   min="0"
-                  step="0.1"
-                  value={form.jogSpeedKph}
+                  step="5"
+                  value={form.manualCalories}
                   onChange={(e) =>
                     setForm((prev) => ({
                       ...prev,
-                      jogSpeedKph: e.target.value,
+                      manualCalories: e.target.value,
                     }))
                   }
                   className="min-h-[44px] w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950/80 px-3 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
                 />
               </label>
 
-              <label className="block min-w-0">
+              <label className="col-span-2 block min-w-0">
                 <span className="mb-1 block text-[11px] font-medium text-slate-400">
-                  Walk Speed (kph)
+                  Activity Name
                 </span>
                 <input
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="0.1"
-                  value={form.walkSpeedKph}
+                  type="text"
+                  placeholder="Pickleball, Cycling, Basketball..."
+                  value={form.activityLabel}
                   onChange={(e) =>
                     setForm((prev) => ({
                       ...prev,
-                      walkSpeedKph: e.target.value,
+                      activityLabel: e.target.value,
                     }))
                   }
-                  className="min-h-[44px] w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950/80 px-3 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+                  className="min-h-[44px] w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950/80 px-3 text-sm text-slate-100 placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none"
                 />
               </label>
             </>
           ) : (
-            <label className="col-span-2 block min-w-0">
-              <span className="mb-1 block text-[11px] font-medium text-slate-400">
-                Speed (kph)
-              </span>
-              <input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.1"
-                value={form.speedKph}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, speedKph: e.target.value }))
-                }
-                className="min-h-[44px] w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950/80 px-3 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
-              />
-            </label>
+            <>
+              <label className="block min-w-0">
+                <span className="mb-1 block text-[11px] font-medium text-slate-400">
+                  Incline (%)
+                </span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.5"
+                  value={form.inclinePct}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, inclinePct: e.target.value }))
+                  }
+                  className="min-h-[44px] w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950/80 px-3 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+                />
+              </label>
+
+              {form.mode === 'interval_run' ? (
+                <>
+                  <label className="block min-w-0">
+                    <span className="mb-1 block text-[11px] font-medium text-slate-400">
+                      Jog Speed (kph)
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.1"
+                      value={form.jogSpeedKph}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          jogSpeedKph: e.target.value,
+                        }))
+                      }
+                      className="min-h-[44px] w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950/80 px-3 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+                    />
+                  </label>
+
+                  <label className="block min-w-0">
+                    <span className="mb-1 block text-[11px] font-medium text-slate-400">
+                      Walk Speed (kph)
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.1"
+                      value={form.walkSpeedKph}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          walkSpeedKph: e.target.value,
+                        }))
+                      }
+                      className="min-h-[44px] w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950/80 px-3 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+                    />
+                  </label>
+                </>
+              ) : (
+                <label className="col-span-2 block min-w-0">
+                  <span className="mb-1 block text-[11px] font-medium text-slate-400">
+                    Speed (kph)
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.1"
+                    value={form.speedKph}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, speedKph: e.target.value }))
+                    }
+                    className="min-h-[44px] w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950/80 px-3 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+                  />
+                </label>
+              )}
+            </>
           )}
         </div>
 

@@ -289,6 +289,7 @@ export function validateBackupPayload(raw: unknown): FitnessBackupPayload {
           ? item.caffeineVariant
           : undefined,
       notes: typeof item.notes === 'string' ? item.notes : undefined,
+      photoUrl: typeof item.photoUrl === 'string' ? item.photoUrl : undefined,
       aiItems,
       createdAt:
         typeof item.createdAt === 'string'
@@ -419,9 +420,14 @@ export function validateBackupPayload(raw: unknown): FitnessBackupPayload {
         mode:
           c.mode === 'incline_walk' ||
           c.mode === 'interval_run' ||
-          c.mode === 'easy_walk'
+          c.mode === 'easy_walk' ||
+          c.mode === 'sport'
             ? c.mode
             : 'incline_walk',
+        activityLabel:
+          typeof c.activityLabel === 'string' && c.activityLabel.trim()
+            ? c.activityLabel.trim()
+            : undefined,
         durationMin: assertNonNegativeFinite(
           c.durationMin,
           `workouts[${idx}].cardio[${cIdx}].durationMin`,

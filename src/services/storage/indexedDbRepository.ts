@@ -1,4 +1,8 @@
-import { createInitialSeedState } from '../../domain/seed';
+import {
+  CURRENT_SEED_REVISION,
+  createInitialSeedState,
+  mergeSeedEntriesIntoState,
+} from '../../domain/seed';
 import type {
   AppSettings,
   FitnessAppState,
@@ -198,6 +202,14 @@ export class IndexedDbRepository implements FitnessStorageAdapter {
     return this.enqueue(async () => {
       const existing = await this.readPersistedState();
       if (existing && existing.initialized) {
+        if ((existing.seedRevision ?? 1) < CURRENT_SEED_REVISION) {
+          const migrated = mergeSeedEntriesIntoState(
+            existing,
+            createInitialSeedState(),
+          );
+          await this.writePersistedState(migrated);
+          return cloneState(migrated);
+        }
         return existing;
       }
       const seed = createInitialSeedState();
@@ -330,6 +342,7 @@ export class IndexedDbRepository implements FitnessStorageAdapter {
     const validated = validateBackupPayload(rawPayload);
     const restored: FitnessAppState = {
       initialized: true,
+      seedRevision: CURRENT_SEED_REVISION,
       profile: cloneState(validated.profile),
       targets: cloneState(validated.targets),
       presets: cloneState(validated.presets),

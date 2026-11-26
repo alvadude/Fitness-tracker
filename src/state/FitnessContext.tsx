@@ -9,6 +9,11 @@ import {
   type ReactNode,
 } from 'react';
 import { createWorkoutTemplateForDayType } from '../domain/defaults';
+import {
+  mergeImportedLogsIntoState,
+  parseSeedHandoffInput,
+  type MergeImportSummary,
+} from '../domain/logImporter';
 import { createInitialSeedState } from '../domain/seed';
 import { formatIsoDateLocal, getDayTypeForDate } from '../domain/training';
 import type {
@@ -80,6 +85,7 @@ export interface FitnessContextValue {
   saveGeminiApiKey: (key: string) => void;
   exportBackupJson: () => Promise<string>;
   importBackupJson: (jsonText: string) => Promise<void>;
+  appendLogsFromImport: (rawText: string) => Promise<MergeImportSummary>;
   resetAllToSeed: () => Promise<void>;
 }
 
@@ -524,6 +530,43 @@ export function FitnessProvider({
     [enqueueMutation, hydrateRepo, repo],
   );
 
+  const appendLogsFromImport = useCallback(
+    (rawText: string) =>
+      enqueueMutation(async () => {
+        const current = await hydrateRepo(repo);
+        const bodyWeightKg = computeCurrentWeightKg(current);
+        const parsed = parseSeedHandoffInput(rawText, bodyWeightKg);
+        const summary = mergeImportedLogsIntoState(current, parsed);
+
+        const existingMealIds = new Set(current.meals.map((m) => m.id));
+        const existingWorkoutIds = new Set(current.workouts.map((w) => w.id));
+        const existingWeighInIds = new Set(current.weighIns.map((w) => w.id));
+
+        for (const meal of summary.nextState.meals) {
+          if (!existingMealIds.has(meal.id)) {
+            await repo.upsertMeal(meal);
+          }
+        }
+        for (const workout of summary.nextState.workouts) {
+          if (!existingWorkoutIds.has(workout.id)) {
+            await repo.upsertWorkout(workout);
+          }
+        }
+        for (const weighIn of summary.nextState.weighIns) {
+          if (!existingWeighInIds.has(weighIn.id)) {
+            await repo.upsertWeighIn(weighIn);
+          }
+        }
+
+        if (activeRepoRef.current === repo) {
+          stateRef.current = summary.nextState;
+          setState(summary.nextState);
+        }
+        return summary;
+      }),
+    [enqueueMutation, hydrateRepo, repo],
+  );
+
   const resetAllToSeed = useCallback(
     () =>
       enqueueMutation(async () => {
@@ -578,6 +621,7 @@ export function FitnessProvider({
       saveGeminiApiKey,
       exportBackupJson,
       importBackupJson,
+      appendLogsFromImport,
       resetAllToSeed,
     }),
     [
@@ -603,6 +647,7 @@ export function FitnessProvider({
       saveGeminiApiKey,
       exportBackupJson,
       importBackupJson,
+      appendLogsFromImport,
       resetAllToSeed,
     ],
   );

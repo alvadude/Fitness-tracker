@@ -9,10 +9,11 @@ import {
 import { SEED_DATES, createInitialSeedState } from '../domain/seed';
 
 describe('nutrition domain', () => {
-  it('sums Nov 24 and Nov 25 seed meals accurately', () => {
+  it('sums Nov 24, Nov 25, and Nov 26 seed meals accurately', () => {
     const seed = createInitialSeedState();
     const nov24Meals = seed.meals.filter((m) => m.date === SEED_DATES.DAY_1);
     const nov25Meals = seed.meals.filter((m) => m.date === SEED_DATES.DAY_2);
+    const nov26Meals = seed.meals.filter((m) => m.date === SEED_DATES.DAY_3);
 
     expect(nov24Meals).toHaveLength(6);
     expect(sumDailyMacros(nov24Meals)).toEqual({
@@ -22,12 +23,20 @@ describe('nutrition domain', () => {
       fatG: 92,
     });
 
-    expect(nov25Meals).toHaveLength(1);
+    expect(nov25Meals).toHaveLength(9);
     expect(sumDailyMacros(nov25Meals)).toEqual({
-      calories: 35,
-      proteinG: 0,
-      carbsG: 3,
-      fatG: 2,
+      calories: 2630,
+      proteinG: 165,
+      carbsG: 259,
+      fatG: 102,
+    });
+
+    expect(nov26Meals).toHaveLength(1);
+    expect(sumDailyMacros(nov26Meals)).toEqual({
+      calories: 560,
+      proteinG: 15,
+      carbsG: 56,
+      fatG: 29,
     });
   });
 
@@ -41,6 +50,16 @@ describe('nutrition domain', () => {
       proteinG: -10,
       carbsG: -19,
       fatG: -32,
+    });
+
+    const nov26Totals = sumDailyMacros(
+      seed.meals.filter((m) => m.date === SEED_DATES.DAY_3),
+    );
+    expect(computeRemainingMacros(DEFAULT_TARGETS, nov26Totals)).toEqual({
+      calories: 1340,
+      proteinG: 145,
+      carbsG: 124,
+      fatG: 31,
     });
   });
 

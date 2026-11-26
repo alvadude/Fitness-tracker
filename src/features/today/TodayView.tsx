@@ -134,6 +134,7 @@ export function TodayView() {
       isCaffeinated: meal.isCaffeinated,
       caffeineVariant: meal.caffeineVariant,
       notes: meal.notes,
+      photoUrl: meal.photoUrl,
       aiItems: meal.aiItems,
     });
   }
@@ -201,6 +202,7 @@ export function TodayView() {
     { label: 'Today', date: todayIso },
     { label: 'Nov 24', date: SEED_DATES.DAY_1 },
     { label: 'Nov 25', date: SEED_DATES.DAY_2 },
+    { label: 'Nov 26', date: SEED_DATES.DAY_3 },
   ];
 
   return (
@@ -429,6 +431,14 @@ export function TodayView() {
                         </div>
                       )}
                   </div>
+                  {meal.photoUrl && (
+                    <img
+                      src={meal.photoUrl}
+                      alt={meal.name}
+                      loading="lazy"
+                      className="h-14 w-14 shrink-0 rounded-xl border border-slate-800 object-cover"
+                    />
+                  )}
                 </div>
 
                 <div className="flex items-center justify-end gap-1.5 border-t border-slate-800/70 pt-2">
