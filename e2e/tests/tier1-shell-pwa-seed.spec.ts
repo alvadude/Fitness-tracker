@@ -191,13 +191,14 @@ test.describe('Tier 1 — F2: PWA Manifest, Custom Icons & Offline Service Worke
     await context.setOffline(false);
   });
 
-  test('T1-F2-05: Cloudflare Pages SPA _redirects artifact exists', async ({ page }) => {
-    await page.goto('/');
+  test('T1-F2-05: SPA fallback route serves app shell without invalid _redirects loop', async ({ page }) => {
+    await page.goto('/training');
+    await expect(getNavRegion(page)).toBeVisible();
     const res = await page.request.get('/_redirects');
-    expect(res.status()).toBe(200);
-    const text = await res.text();
-    expect(text).toContain('/index.html');
-    expect(text).toContain('200');
+    if (res.status() === 200) {
+      const text = await res.text();
+      expect(text).not.toContain('/* /index.html 200');
+    }
   });
 });
 
