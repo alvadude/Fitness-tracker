@@ -3,6 +3,7 @@ export type IsoTimestamp = string; // ISO-8601 UTC timestamp
 export type TabId = 'today' | 'training' | 'progress' | 'settings';
 
 export interface UserProfile {
+  name?: string; // display name, e.g. 'AJ'
   age: number; // default: 29
   sex: 'male' | 'female'; // default: 'male'
   heightCm: number; // default: 175
@@ -12,6 +13,13 @@ export interface UserProfile {
   targetWeightKg: number; // default: 65.0
   targetDate: IsoDate; // default: '2027-06-15'
   caffeineCutoffHour: number; // default: 18 (6:00 PM)
+}
+
+export interface ProfileSummary {
+  id: string;
+  name: string;
+  isSeededDefault: boolean;
+  createdAt: IsoTimestamp;
 }
 
 export interface MacroTargets {

@@ -130,6 +130,9 @@ export function validateBackupPayload(raw: unknown): FitnessBackupPayload {
   }
 
   const profile: UserProfile = {
+    ...(typeof p.name === 'string' && p.name.trim().length > 0
+      ? { name: p.name.trim() }
+      : {}),
     age: assertPositiveFinite(p.age, 'profile.age'),
     sex: p.sex,
     heightCm: assertPositiveFinite(p.heightCm, 'profile.heightCm'),

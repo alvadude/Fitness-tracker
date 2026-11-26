@@ -9,6 +9,19 @@ export {
   IndexedDbRepository,
   type IndexedDbRepositoryOptions,
 } from './indexedDbRepository';
+export {
+  ACTIVE_PROFILE_STORAGE_KEY,
+  DEFAULT_PROFILE_ID,
+  PROFILES_STORAGE_KEY,
+  createNewProfileWithState,
+  createRepositoryForProfile,
+  deleteProfileFromRegistry,
+  getActiveProfileId,
+  loadProfiles,
+  renameProfileInRegistry,
+  saveProfiles,
+  setActiveProfileId,
+} from './profileRegistry';
 
 export const GEMINI_API_KEY_STORAGE_KEY = 'fittrack_gemini_api_key';
 

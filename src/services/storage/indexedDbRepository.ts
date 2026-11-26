@@ -24,6 +24,8 @@ export interface IndexedDbRepositoryOptions {
   storeName?: string;
   recordKey?: string;
   localStorageKey?: string;
+  initialStateFactory?: () => FitnessAppState;
+  enableSeedMigration?: boolean;
 }
 
 const DEFAULT_DB_NAME = 'fitness_tracker_db';
@@ -43,6 +45,8 @@ export class IndexedDbRepository implements FitnessStorageAdapter {
   private readonly storeName: string;
   private readonly recordKey: string;
   private readonly localStorageKey: string;
+  private readonly initialStateFactory: () => FitnessAppState;
+  private readonly enableSeedMigration: boolean;
   private memoryFallback: FitnessAppState | null = null;
   private writeQueue: Promise<unknown> = Promise.resolve();
 
@@ -51,6 +55,9 @@ export class IndexedDbRepository implements FitnessStorageAdapter {
     this.storeName = options.storeName ?? DEFAULT_STORE_NAME;
     this.recordKey = options.recordKey ?? DEFAULT_RECORD_KEY;
     this.localStorageKey = options.localStorageKey ?? DEFAULT_LOCAL_STORAGE_KEY;
+    this.initialStateFactory =
+      options.initialStateFactory ?? createInitialSeedState;
+    this.enableSeedMigration = options.enableSeedMigration ?? true;
   }
 
   private enqueue<T>(op: () => Promise<T>): Promise<T> {
@@ -202,7 +209,10 @@ export class IndexedDbRepository implements FitnessStorageAdapter {
     return this.enqueue(async () => {
       const existing = await this.readPersistedState();
       if (existing && existing.initialized) {
-        if ((existing.seedRevision ?? 1) < CURRENT_SEED_REVISION) {
+        if (
+          this.enableSeedMigration &&
+          (existing.seedRevision ?? 1) < CURRENT_SEED_REVISION
+        ) {
           const migrated = mergeSeedEntriesIntoState(
             existing,
             createInitialSeedState(),
@@ -212,7 +222,7 @@ export class IndexedDbRepository implements FitnessStorageAdapter {
         }
         return existing;
       }
-      const seed = createInitialSeedState();
+      const seed = this.initialStateFactory();
       await this.writePersistedState(seed);
       return cloneState(seed);
     });
@@ -359,7 +369,26 @@ export class IndexedDbRepository implements FitnessStorageAdapter {
 
   async resetToSeed(): Promise<FitnessAppState> {
     return this.enqueue(async () => {
-      const seed = createInitialSeedState();
+      const existing = await this.readPersistedState();
+      const seed = this.enableSeedMigration
+        ? this.initialStateFactory()
+        : existing
+          ? {
+              ...this.initialStateFactory(),
+              profile: cloneState(existing.profile),
+              targets: cloneState(existing.targets),
+              weighIns: [
+                {
+                  id: `baseline-weighin-${existing.profile.startDate}`,
+                  date: existing.profile.startDate,
+                  weightKg: existing.profile.startWeightKg,
+                  isFasted: true,
+                  notes: 'Starting baseline',
+                  createdAt: new Date().toISOString(),
+                },
+              ],
+            }
+          : this.initialStateFactory();
       await this.writePersistedState(seed);
       return cloneState(seed);
     });

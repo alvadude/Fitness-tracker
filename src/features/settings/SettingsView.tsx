@@ -4,8 +4,10 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from 'react';
+import { calculateRecommendedTargets } from '../../domain/nutrition';
 import { parseIsoDateLocal } from '../../domain/training';
 import type { MacroTargets, UserProfile } from '../../domain/types';
+import { getProfileSetupInviteUrl } from '../profiles/ProfileSwitcherModal';
 import {
   DAILY_REMINDER_BODY,
   SATURDAY_REMINDER_BODY,
@@ -21,6 +23,7 @@ import {
 import { useFitness } from '../../state/FitnessContext';
 
 interface ProfileDraft {
+  name: string;
   age: string;
   sex: UserProfile['sex'];
   heightCm: string;
@@ -42,6 +45,7 @@ interface TargetsDraft {
 
 function profileToDraft(profile: UserProfile): ProfileDraft {
   return {
+    name: profile.name ?? '',
     age: String(profile.age),
     sex: profile.sex,
     heightCm: String(profile.heightCm),
@@ -85,7 +89,17 @@ function readUploadedTextFile(file: File): Promise<string> {
   });
 }
 
-export function SettingsView() {
+export interface SettingsViewProps {
+  activeProfileName?: string;
+  isSeededDefaultProfile?: boolean;
+  onOpenProfileSwitcher?: (mode: 'list' | 'create') => void;
+}
+
+export function SettingsView({
+  activeProfileName,
+  isSeededDefaultProfile = true,
+  onOpenProfileSwitcher,
+}: SettingsViewProps = {}) {
   const {
     state,
     selectedDate,
@@ -130,6 +144,7 @@ export function SettingsView() {
   const [appendStatus, setAppendStatus] = useState<string | null>(null);
   const [appendError, setAppendError] = useState<string | null>(null);
   const [isBusyAppend, setIsBusyAppend] = useState<boolean>(false);
+  const [inviteStatus, setInviteStatus] = useState<string | null>(null);
 
   const [syncedProfile, setSyncedProfile] = useState<UserProfile>(state.profile);
   const [syncedTargets, setSyncedTargets] = useState<MacroTargets>(state.targets);
@@ -244,7 +259,9 @@ export function SettingsView() {
       return;
     }
 
+    const trimmedName = profileDraft.name.trim();
     const nextProfile: UserProfile = {
+      ...(trimmedName ? { name: trimmedName } : {}),
       age: Math.round(age),
       sex: profileDraft.sex,
       heightCm: Math.round(heightCm),
@@ -264,6 +281,7 @@ export function SettingsView() {
     };
 
     const profileUnchanged =
+      (nextProfile.name ?? '') === (state.profile.name ?? '') &&
       nextProfile.age === state.profile.age &&
       nextProfile.sex === state.profile.sex &&
       nextProfile.heightCm === state.profile.heightCm &&
@@ -470,6 +488,72 @@ export function SettingsView() {
     }
   };
 
+  const handleAutoCalculateTargets = () => {
+    setProfileError(null);
+    setProfileStatus(null);
+    const age = parseRequiredNumber(profileDraft.age);
+    const heightCm = parseRequiredNumber(profileDraft.heightCm);
+    const startWeightKg = parseRequiredNumber(profileDraft.startWeightKg);
+    const targetWeightKg = parseRequiredNumber(profileDraft.targetWeightKg);
+    const weekNumber = parseRequiredNumber(targetsDraft.weekNumber);
+
+    if (
+      !Number.isFinite(age) ||
+      age < 13 ||
+      age > 120 ||
+      !Number.isFinite(heightCm) ||
+      heightCm < 100 ||
+      heightCm > 250 ||
+      !Number.isFinite(startWeightKg) ||
+      startWeightKg < 30 ||
+      startWeightKg > 300 ||
+      !Number.isFinite(targetWeightKg) ||
+      targetWeightKg < 30 ||
+      targetWeightKg > 300
+    ) {
+      setProfileError(
+        'Enter valid age, height, and weights before auto-calculating targets.',
+      );
+      return;
+    }
+
+    const recommended = calculateRecommendedTargets(
+      {
+        name: profileDraft.name.trim() || undefined,
+        age: Math.round(age),
+        sex: profileDraft.sex,
+        heightCm: Math.round(heightCm),
+        activityLevel: profileDraft.activityLevel,
+        startWeightKg,
+        startDate: profileDraft.startDate.trim(),
+        targetWeightKg,
+        targetDate: profileDraft.targetDate.trim(),
+        caffeineCutoffHour: Number.isInteger(parsedCutoffHour)
+          ? parsedCutoffHour
+          : 18,
+      },
+      Number.isInteger(weekNumber) && weekNumber >= 1 ? weekNumber : 1,
+    );
+    setTargetsDraft(targetsToDraft(recommended));
+    setProfileStatus(
+      `Calculated targets: ${recommended.calories} kcal (${recommended.proteinG}g P / ${recommended.carbsG}g C / ${recommended.fatG}g F). Tap Save Profile & Targets to apply.`,
+    );
+  };
+
+  const handleCopyInviteUrl = async () => {
+    const inviteUrl = getProfileSetupInviteUrl();
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(inviteUrl);
+        setInviteStatus('Setup link copied! Send it to set up another phone.');
+      } else {
+        setInviteStatus(`Share link: ${inviteUrl}`);
+      }
+    } catch {
+      setInviteStatus(`Share link: ${inviteUrl}`);
+    }
+  };
+
   const handleConfirmReset = async () => {
     setBackupError(null);
     setBackupStatus(null);
@@ -477,7 +561,11 @@ export function SettingsView() {
     try {
       await resetAllToSeed();
       setConfirmReset(false);
-      setBackupStatus('Restored initial Nov 24–26 seed data.');
+      setBackupStatus(
+        isSeededDefaultProfile
+          ? 'Restored initial Nov 24–26 seed data.'
+          : 'Cleared logged meals and workouts for this profile.',
+      );
     } catch (err: unknown) {
       setBackupError(
         err instanceof Error ? err.message : 'Failed to reset to seed data.',
@@ -489,6 +577,59 @@ export function SettingsView() {
 
   return (
     <section className="space-y-4">
+      {/* 0. Household & Profiles */}
+      {onOpenProfileSwitcher && (
+        <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-100">
+                Household &amp; Profiles
+              </h2>
+              <p className="text-[11px] text-slate-400">
+                Currently tracking as{' '}
+                <strong className="text-emerald-300">
+                  {activeProfileName || state.profile.name || 'AJ'}
+                </strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onOpenProfileSwitcher('create')}
+              className="min-h-[44px] flex-1 rounded-xl bg-emerald-500 px-3 text-xs font-bold text-slate-950 transition-colors hover:bg-emerald-400"
+            >
+              Add New Person
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpenProfileSwitcher('list')}
+              className="min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 px-3 text-xs font-semibold text-slate-200 transition-colors hover:bg-slate-700"
+            >
+              Switch Profile
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void handleCopyInviteUrl()}
+            className="min-h-[44px] w-full rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-3 text-xs font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/25"
+          >
+            Copy Setup Link for Another Phone
+          </button>
+
+          {inviteStatus && (
+            <div
+              role="status"
+              className="rounded-xl border border-emerald-500/40 bg-emerald-950/40 px-3 py-2 text-xs text-emerald-200"
+            >
+              {inviteStatus}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 1. Profile & Targets */}
       <form
         onSubmit={handleSaveProfileAndTargets}
@@ -529,6 +670,25 @@ export function SettingsView() {
             {profileStatus}
           </div>
         )}
+
+        <div className="space-y-1">
+          <label
+            htmlFor="profile-name"
+            className="block text-xs text-slate-400"
+          >
+            Display Name
+          </label>
+          <input
+            id="profile-name"
+            type="text"
+            placeholder="Your name"
+            value={profileDraft.name}
+            onChange={(e) =>
+              setProfileDraft((d) => ({ ...d, name: e.target.value }))
+            }
+            className="min-h-[44px] w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-base text-slate-100 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none"
+          />
+        </div>
 
         <div className="grid grid-cols-2 gap-2.5">
           <div className="space-y-1">
@@ -725,8 +885,17 @@ export function SettingsView() {
         </div>
 
         <div className="border-t border-slate-800 pt-3">
-          <div className="mb-2 text-xs font-semibold text-slate-200">
-            Daily Macro Targets
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-200">
+              Daily Macro Targets
+            </span>
+            <button
+              type="button"
+              onClick={handleAutoCalculateTargets}
+              className="rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-2.5 py-1 text-[11px] font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/25"
+            >
+              Auto-Calculate Targets
+            </button>
           </div>
           <div className="grid grid-cols-2 gap-2.5">
             <div className="space-y-1">

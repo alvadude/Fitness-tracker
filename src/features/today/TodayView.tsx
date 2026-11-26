@@ -198,12 +198,25 @@ export function TodayView() {
     }
   }
 
-  const quickDates = [
-    { label: 'Today', date: todayIso },
-    { label: 'Nov 24', date: SEED_DATES.DAY_1 },
-    { label: 'Nov 25', date: SEED_DATES.DAY_2 },
-    { label: 'Nov 26', date: SEED_DATES.DAY_3 },
-  ];
+  const hasSeedLogs = useMemo(
+    () =>
+      state.meals.some(
+        (m) =>
+          m.date === SEED_DATES.DAY_1 ||
+          m.date === SEED_DATES.DAY_2 ||
+          m.date === SEED_DATES.DAY_3,
+      ),
+    [state.meals],
+  );
+
+  const quickDates = hasSeedLogs
+    ? [
+        { label: 'Today', date: todayIso },
+        { label: 'Nov 24', date: SEED_DATES.DAY_1 },
+        { label: 'Nov 25', date: SEED_DATES.DAY_2 },
+        { label: 'Nov 26', date: SEED_DATES.DAY_3 },
+      ]
+    : [{ label: 'Today', date: todayIso }];
 
   return (
     <section className="space-y-4">

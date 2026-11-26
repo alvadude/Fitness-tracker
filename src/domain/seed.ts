@@ -5,7 +5,7 @@ import {
   DEFAULT_TARGETS,
 } from './defaults';
 import { estimateTreadmillCalories } from './training';
-import type { FitnessAppState } from './types';
+import type { FitnessAppState, MacroTargets, UserProfile } from './types';
 
 export const CURRENT_SEED_REVISION = 2;
 
@@ -14,6 +14,36 @@ export const SEED_DATES = {
   DAY_2: '2026-11-25',
   DAY_3: '2026-11-26',
 } as const;
+
+/**
+ * Creates a clean, unseeded initial state for a new user profile (no AJ Nov 24-26 logs).
+ */
+export function createBlankProfileState(
+  profile: UserProfile,
+  targets: MacroTargets,
+): FitnessAppState {
+  const nowIso = new Date().toISOString();
+  return {
+    initialized: true,
+    seedRevision: CURRENT_SEED_REVISION,
+    profile: { ...profile },
+    targets: { ...targets },
+    presets: DEFAULT_FOOD_PRESETS.map((preset) => ({ ...preset })),
+    settings: { ...DEFAULT_SETTINGS },
+    weighIns: [
+      {
+        id: `baseline-weighin-${profile.startDate}`,
+        date: profile.startDate,
+        weightKg: profile.startWeightKg,
+        isFasted: true,
+        notes: 'Starting baseline',
+        createdAt: nowIso,
+      },
+    ],
+    meals: [],
+    workouts: [],
+  };
+}
 
 export function createInitialSeedState(): FitnessAppState {
   const day1WalkBurn = estimateTreadmillCalories({

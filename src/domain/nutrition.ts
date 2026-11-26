@@ -1,11 +1,72 @@
-import { estimateTreadmillKcalPerMin } from './training';
+import { diffDaysIsoDate, estimateTreadmillKcalPerMin } from './training';
 import type {
   EveningAdviceInput,
   EveningAdviceResult,
   MacroTargets,
   MacroTotals,
   MealEntry,
+  UserProfile,
 } from './types';
+
+const ACTIVITY_MULTIPLIERS: Record<UserProfile['activityLevel'], number> = {
+  desk: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+  active: 1.725,
+};
+
+/**
+ * Estimates daily calorie & macro targets using Mifflin-St Jeor BMR + activity
+ * multiplier + goal weight trajectory, clamped to safe minimum floors.
+ */
+export function calculateRecommendedTargets(
+  profile: UserProfile,
+  weekNumber = 1,
+): MacroTargets {
+  const bmr =
+    10 * profile.startWeightKg +
+    6.25 * profile.heightCm -
+    5 * profile.age +
+    (profile.sex === 'male' ? 5 : -161);
+  const tdee = bmr * (ACTIVITY_MULTIPLIERS[profile.activityLevel] ?? 1.2);
+
+  let days = 180;
+  try {
+    const computed = diffDaysIsoDate(profile.startDate, profile.targetDate);
+    if (computed > 0) {
+      days = computed;
+    }
+  } catch {
+    days = 180;
+  }
+
+  const weightDeltaKg = profile.targetWeightKg - profile.startWeightKg;
+  const rawDailyDelta = (weightDeltaKg * 7700) / days;
+  const clampedDelta = Math.max(-750, Math.min(400, rawDailyDelta));
+
+  const minCalories = profile.sex === 'male' ? 1500 : 1200;
+  const rawCalories = Math.max(minCalories, tdee + clampedDelta);
+  const calories = Math.round(rawCalories / 10) * 10;
+
+  const targetRefKg =
+    profile.targetWeightKg > 0 ? profile.targetWeightKg : profile.startWeightKg;
+  const maxProteinG = Math.floor((calories * 0.4) / 4);
+  const proteinG = Math.min(
+    maxProteinG,
+    Math.max(70, Math.round(targetRefKg * 1.8)),
+  );
+  const fatG = Math.max(35, Math.round((calories * 0.28) / 9));
+  const remainingForCarbs = calories - proteinG * 4 - fatG * 9;
+  const carbsG = Math.max(50, Math.round(remainingForCarbs / 4));
+
+  return {
+    calories,
+    proteinG,
+    carbsG,
+    fatG,
+    weekNumber: Math.max(1, Math.round(weekNumber)),
+  };
+}
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10;

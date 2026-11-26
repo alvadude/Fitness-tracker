@@ -11,6 +11,7 @@ import type {
 } from './types';
 
 export const DEFAULT_PROFILE: UserProfile = {
+  name: 'AJ',
   age: 29,
   sex: 'male',
   heightCm: 175,
