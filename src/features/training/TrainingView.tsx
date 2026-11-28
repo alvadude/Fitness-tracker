@@ -10,6 +10,7 @@ import {
   Moon,
   Sparkles,
 } from 'lucide-react';
+import { WorkoutComplianceCalendar } from '../../components/WorkoutComplianceCalendar';
 import {
   addDaysIsoDate,
   formatIsoDateLocal,
@@ -58,7 +59,19 @@ export function TrainingView() {
   const storedSession = state.workouts.find((w) => w.date === selectedDate);
   const baseSession = storedSession ?? getOrCreateWorkoutForDate(selectedDate);
   const dayType = getDayTypeForDate(selectedDate);
-  const workday = isWorkday(dayType);
+  const plannedDayForSelectedDate = state.weeklyPlan?.days.find(
+    (d) => d.dayOfWeek === parseIsoDateLocal(selectedDate).getDay(),
+  );
+  const isRestOrRecoveryDay = plannedDayForSelectedDate
+    ? plannedDayForSelectedDate.isRestDay
+    : isWorkday(dayType);
+  const workday = isRestOrRecoveryDay;
+  const equipmentChips =
+    state.weeklyPlan &&
+    state.settings.availableEquipment &&
+    state.settings.availableEquipment.length > 0
+      ? state.settings.availableEquipment
+      : HOME_GYM_EQUIPMENT;
 
   const latestByDateRef = useRef<Map<IsoDate, WorkoutSession>>(new Map());
   const pendingOpsByDateRef = useRef<Map<IsoDate, number>>(new Map());
@@ -137,7 +150,7 @@ export function TrainingView() {
         latestByDateRef.current.get(selectedDate) ?? baseSession;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, storedSession]);
+  }, [selectedDate, storedSession, state.weeklyPlan]);
 
   const incrementPendingForDate = (targetDate: IsoDate) => {
     pendingOpsByDateRef.current.set(
@@ -226,14 +239,15 @@ export function TrainingView() {
     void setDailyPlanStatus(selectedDate, status);
   };
 
-  const currentDailyStatus: WorkoutCompletionStatus =
+  const explicitDailyStatus: WorkoutCompletionStatus | undefined =
     state.weeklyPlan?.dailyStatusByDate[selectedDate] ??
     session.completionStatus ??
-    (session.completed ? 'completed' : 'not_completed');
+    (session.completed ? 'completed' : undefined);
 
-  const plannedDayForSelectedDate = state.weeklyPlan?.days.find(
-    (d) => d.dayOfWeek === parseIsoDateLocal(selectedDate).getDay(),
-  );
+  const currentDailyStatus: WorkoutCompletionStatus =
+    explicitDailyStatus ?? 'not_completed';
+  const isRestDayCompliedByDefault =
+    isRestOrRecoveryDay && explicitDailyStatus === undefined;
 
   const persistSleepValue = (raw: string) => {
     const trimmed = raw.trim();
@@ -434,7 +448,13 @@ export function TrainingView() {
                   : 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
               }`}
             >
-              {workday ? 'Workday · Active Recovery' : 'Off Day · Training Split'}
+              {workday
+                ? plannedDayForSelectedDate
+                  ? 'AI Plan · Rest & Recovery (Complied)'
+                  : 'Workday · Active Recovery'
+                : plannedDayForSelectedDate
+                  ? 'AI Weekly Plan · Active Workout'
+                  : 'Off Day · Training Split'}
             </span>
             <span className="text-xs text-slate-400">{selectedDate}</span>
           </div>
@@ -446,16 +466,25 @@ export function TrainingView() {
           {plannedDayForSelectedDate && (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs">
               <div className="min-w-0 flex-1 text-cyan-200">
-                <span className="font-semibold">AI Plan:</span>{' '}
+                <span className="font-semibold">AI Plan Active:</span>{' '}
                 {plannedDayForSelectedDate.focus}
+                {plannedDayForSelectedDate.cardioNote
+                  ? ` · ${plannedDayForSelectedDate.cardioNote}`
+                  : ''}
               </div>
               <button
                 type="button"
                 onClick={() => setSubTab('planner')}
                 className="shrink-0 font-semibold text-cyan-300 underline underline-offset-2"
               >
-                View Plan
+                Edit Plan
               </button>
+            </div>
+          )}
+
+          {isRestDayCompliedByDefault && (
+            <div className="rounded-xl border border-teal-500/35 bg-teal-500/10 px-3 py-1.5 text-[11px] font-medium text-teal-300">
+              Rest day — automatically counted as complied by default.
             </div>
           )}
 
@@ -634,10 +663,14 @@ export function TrainingView() {
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 space-y-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
               <Dumbbell className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-              <span>Home Gym Equipment</span>
+              <span>
+                {state.weeklyPlan
+                  ? 'Available Equipment'
+                  : 'Home Gym Equipment'}
+              </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {HOME_GYM_EQUIPMENT.map((item) => (
+              {equipmentChips.map((item) => (
                 <span
                   key={item}
                   className="rounded-full border border-slate-700 bg-slate-800/70 px-2.5 py-1 text-[11px] font-medium text-slate-300"
@@ -686,6 +719,11 @@ export function TrainingView() {
           {session.completed ? 'Workout Completed' : 'Complete Workout'}
         </span>
       </button>
+
+      <WorkoutComplianceCalendar
+        activeDate={selectedDate}
+        onSelectDate={(date) => setSelectedDate(date)}
+      />
         </>
       )}
     </section>

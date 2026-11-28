@@ -241,8 +241,9 @@ describe('AI Weekly Workout Planner, Equipment Checklist & Daily Status Ticks', 
 
     await waitFor(() => {
       expect(screen.getByText('1 Completed')).toBeInTheDocument();
+      expect(screen.getByText('2 Rest ✓')).toBeInTheDocument();
       expect(screen.getByText('1 Partial')).toBeInTheDocument();
-      expect(screen.getByText('5 Not Completed')).toBeInTheDocument();
+      expect(screen.getByText('3 Not Completed')).toBeInTheDocument();
     });
 
     // Load Monday exercises into Daily Log

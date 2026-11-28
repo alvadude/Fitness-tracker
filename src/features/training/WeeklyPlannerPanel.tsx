@@ -182,7 +182,7 @@ export function WeeklyPlannerPanel({
       });
       setShowKeyRecovery(false);
       setPlanStatus(
-        `Weekly workout plan generated with ${generated.modelUsed ?? 'Gemini'}.`,
+        `Weekly workout plan generated with ${generated.modelUsed ?? 'Gemini'} and applied to your Daily Log.`,
       );
     } catch (err: unknown) {
       if (
@@ -218,7 +218,7 @@ export function WeeklyPlannerPanel({
     });
     setShowKeyRecovery(false);
     setPlanStatus(
-      'Instant Smart Plan generated locally using your checked equipment.',
+      'Instant Smart Plan generated locally and applied to your Daily Log.',
     );
   };
 
@@ -233,12 +233,16 @@ export function WeeklyPlannerPanel({
     void runGeneratePlan(trimmed);
   };
 
-  const resolveStatusForDate = (date: IsoDate): WorkoutCompletionStatus => {
+  const resolveStatusForDate = (
+    date: IsoDate,
+    isRestDay = false,
+  ): WorkoutCompletionStatus | 'rest_complied' => {
     const fromPlan = state.weeklyPlan?.dailyStatusByDate[date];
     if (fromPlan) return fromPlan;
     const workout = state.workouts.find((w) => w.date === date);
     if (workout?.completionStatus) return workout.completionStatus;
     if (workout?.completed) return 'completed';
+    if (isRestDay) return 'rest_complied';
     return 'not_completed';
   };
 
@@ -279,18 +283,20 @@ export function WeeklyPlannerPanel({
   const plan = state.weeklyPlan;
   const weekCounts = useMemo(() => {
     let completed = 0;
+    let restComplied = 0;
     let partial = 0;
     let notCompleted = 0;
-    if (!plan) return { completed, partial, notCompleted };
+    if (!plan) return { completed, restComplied, partial, notCompleted };
     for (const day of plan.days) {
       const date = weekDateMap.get(day.dayOfWeek);
       if (!date) continue;
-      const st = resolveStatusForDate(date);
+      const st = resolveStatusForDate(date, day.isRestDay);
       if (st === 'completed') completed += 1;
+      else if (st === 'rest_complied') restComplied += 1;
       else if (st === 'partial') partial += 1;
       else notCompleted += 1;
     }
-    return { completed, partial, notCompleted };
+    return { completed, restComplied, partial, notCompleted };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan, weekDateMap, state.workouts]);
 
@@ -517,6 +523,9 @@ export function WeeklyPlannerPanel({
               <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-emerald-300">
                 {weekCounts.completed} Completed
               </span>
+              <span className="rounded-full bg-teal-500/15 px-2.5 py-1 text-teal-300">
+                {weekCounts.restComplied} Rest ✓
+              </span>
               <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-amber-300">
                 {weekCounts.partial} Partial
               </span>
@@ -528,7 +537,7 @@ export function WeeklyPlannerPanel({
 
           {plan.days.map((day) => {
             const dateForDay = weekDateMap.get(day.dayOfWeek) ?? selectedDate;
-            const status = resolveStatusForDate(dateForDay);
+            const status = resolveStatusForDate(dateForDay, day.isRestDay);
             const isSelectedDay = dateForDay === selectedDate;
 
             return (
@@ -537,11 +546,13 @@ export function WeeklyPlannerPanel({
                 className={`rounded-2xl border p-4 space-y-3 ${
                   status === 'completed'
                     ? 'border-emerald-500/40 bg-emerald-950/20'
-                    : status === 'partial'
-                      ? 'border-amber-500/40 bg-amber-950/20'
-                      : isSelectedDay
-                        ? 'border-cyan-500/40 bg-slate-900/90'
-                        : 'border-slate-800 bg-slate-900/80'
+                    : status === 'rest_complied'
+                      ? 'border-teal-500/35 bg-teal-950/15'
+                      : status === 'partial'
+                        ? 'border-amber-500/40 bg-amber-950/20'
+                        : isSelectedDay
+                          ? 'border-cyan-500/40 bg-slate-900/90'
+                          : 'border-slate-800 bg-slate-900/80'
                 }`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -574,16 +585,20 @@ export function WeeklyPlannerPanel({
                     className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
                       status === 'completed'
                         ? 'bg-emerald-500/20 text-emerald-300'
-                        : status === 'partial'
-                          ? 'bg-amber-500/20 text-amber-300'
-                          : 'bg-slate-800 text-slate-400'
+                        : status === 'rest_complied'
+                          ? 'bg-teal-500/20 text-teal-300'
+                          : status === 'partial'
+                            ? 'bg-amber-500/20 text-amber-300'
+                            : 'bg-slate-800 text-slate-400'
                     }`}
                   >
                     {status === 'completed'
                       ? 'Completed'
-                      : status === 'partial'
-                        ? 'Partially Completed'
-                        : 'Not Completed'}
+                      : status === 'rest_complied'
+                        ? 'Rest Day · Complied'
+                        : status === 'partial'
+                          ? 'Partially Completed'
+                          : 'Not Completed'}
                   </span>
                 </div>
 

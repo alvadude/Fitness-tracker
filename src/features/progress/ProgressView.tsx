@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AdherenceBarChart } from '../../components/AdherenceBarChart';
 import { WeightTrendChart } from '../../components/WeightTrendChart';
+import { WorkoutComplianceCalendar } from '../../components/WorkoutComplianceCalendar';
 import {
   computeDailyAdherenceSeries,
   computeWeeklyReport,
@@ -260,6 +261,12 @@ export function ProgressView({ now }: ProgressViewProps = {}) {
         profile={state.profile}
         currentTargets={state.targets}
         onApplyNextWeekTargets={updateTargets}
+      />
+
+      {/* Workout Plan Compliance Calendar */}
+      <WorkoutComplianceCalendar
+        todayIso={progressDate}
+        activeDate={progressDate}
       />
 
       {/* 7-Day Adherence Bar Chart */}

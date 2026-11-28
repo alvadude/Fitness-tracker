@@ -1,11 +1,18 @@
-import { estimateTreadmillCalories } from './training';
+import {
+  estimateTreadmillCalories,
+  getDayTypeForDate,
+  parseIsoDateLocal,
+} from './training';
 import type {
   AppSettings,
+  ExerciseLog,
   ExerciseSetLog,
   FoodPreset,
   IsoDate,
   MacroTargets,
+  PlannedWorkoutDay,
   UserProfile,
+  WeeklyWorkoutPlan,
   WorkoutDayType,
   WorkoutSession,
 } from './types';
@@ -309,4 +316,91 @@ export function createWorkoutTemplateForDayType(
           'Workday (7:30 AM – 8:00 PM): Prioritize 7+ hrs sleep & optional 15–20 min easy treadmill walk.',
       };
   }
+}
+
+function parsePlannedRepRange(repsRaw: string): [number, number] {
+  const rangeMatch = /(\d+)\s*[-–]\s*(\d+)/.exec(repsRaw);
+  if (rangeMatch) {
+    return [Number(rangeMatch[1]), Number(rangeMatch[2])];
+  }
+  const singleMatch = /(\d+)/.exec(repsRaw);
+  if (singleMatch) {
+    const n = Number(singleMatch[1]);
+    return [n, n];
+  }
+  return [8, 12];
+}
+
+function mapPlannedEquipment(
+  equipmentLabel: string,
+): 'barbell' | 'dumbbell' | 'bodyweight' {
+  const lower = equipmentLabel.toLowerCase();
+  if (lower.includes('barbell')) return 'barbell';
+  if (lower.includes('dumbbell') || lower.includes('kettlebell')) {
+    return 'dumbbell';
+  }
+  return 'bodyweight';
+}
+
+function slugifyPlannedExerciseId(name: string, index: number): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return slug || `planned_ex_${index + 1}`;
+}
+
+export function convertPlannedDayToExercises(
+  day: PlannedWorkoutDay,
+): ExerciseLog[] {
+  return day.exercises.map((ex, idx) => {
+    const [minReps, maxReps] = parsePlannedRepRange(ex.reps);
+    return {
+      exerciseId: slugifyPlannedExerciseId(ex.name, idx),
+      name: ex.name,
+      equipment: mapPlannedEquipment(ex.equipment),
+      defaultRestSec: 90,
+      sets: makeEmptySets(Math.max(1, ex.sets), minReps, maxReps),
+    };
+  });
+}
+
+/**
+ * Builds a WorkoutSession aligned with the user's active AI Weekly Plan for a given date.
+ */
+export function createWorkoutSessionFromWeeklyPlan(
+  weeklyPlan: WeeklyWorkoutPlan,
+  date: IsoDate,
+): WorkoutSession {
+  const weekday = parseIsoDateLocal(date).getDay();
+  const plannedDay = weeklyPlan.days.find((d) => d.dayOfWeek === weekday);
+  const fallbackDayType = getDayTypeForDate(date);
+
+  if (!plannedDay) {
+    return createWorkoutTemplateForDayType(
+      fallbackDayType,
+      date,
+      DEFAULT_PROFILE.startWeightKg,
+    );
+  }
+
+  const exercises = plannedDay.isRestDay
+    ? []
+    : convertPlannedDayToExercises(plannedDay);
+  const noteParts = [plannedDay.cardioNote, plannedDay.coachingTip].filter(
+    Boolean,
+  );
+  const existingTick = weeklyPlan.dailyStatusByDate[date];
+
+  return {
+    id: `workout-${date}`,
+    date,
+    dayType: plannedDay.isRestDay ? 'workday_recovery' : fallbackDayType,
+    title: `${plannedDay.dayName} — ${plannedDay.focus}`,
+    exercises,
+    cardio: [],
+    completed: existingTick === 'completed',
+    ...(existingTick ? { completionStatus: existingTick } : {}),
+    ...(noteParts.length > 0 ? { notes: noteParts.join(' · ') } : {}),
+  };
 }

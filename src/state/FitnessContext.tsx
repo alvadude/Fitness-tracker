@@ -8,7 +8,10 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { createWorkoutTemplateForDayType } from '../domain/defaults';
+import {
+  createWorkoutSessionFromWeeklyPlan,
+  createWorkoutTemplateForDayType,
+} from '../domain/defaults';
 import {
   mergeImportedLogsIntoState,
   parseSeedHandoffInput,
@@ -318,6 +321,12 @@ export function FitnessProvider({
       if (existing) {
         return existing;
       }
+      if (stateRef.current.weeklyPlan) {
+        return createWorkoutSessionFromWeeklyPlan(
+          stateRef.current.weeklyPlan,
+          date,
+        );
+      }
       const dayType = getDayTypeForDate(date);
       return createWorkoutTemplateForDayType(dayType, date, currentWeightKg);
     },
@@ -351,11 +360,13 @@ export function FitnessProvider({
         const existing = current.workouts.find((w) => w.date === date);
         const base =
           existing ??
-          createWorkoutTemplateForDayType(
-            getDayTypeForDate(date),
-            date,
-            computeCurrentWeightKg(current),
-          );
+          (current.weeklyPlan
+            ? createWorkoutSessionFromWeeklyPlan(current.weeklyPlan, date)
+            : createWorkoutTemplateForDayType(
+                getDayTypeForDate(date),
+                date,
+                computeCurrentWeightKg(current),
+              ));
         const cardioEntry: CardioLog = {
           ...cardioInput,
           id: generateId('cardio'),
@@ -494,9 +505,46 @@ export function FitnessProvider({
         if (typeof repo.saveWeeklyPlan === 'function') {
           await repo.saveWeeklyPlan(plan);
         }
+
+        // Sync any saved future/today sessions that have no logged sets/cardio yet
+        // so the active AI weekly plan immediately aligns with Daily Log without
+        // overwriting real completed exercises or cardio logs.
+        const todayIso = formatIsoDateLocal(new Date());
+        let nextWorkouts = current.workouts;
+        if (plan) {
+          const syncedWorkouts: WorkoutSession[] = [];
+          for (const w of current.workouts) {
+            const hasLoggedWork =
+              w.cardio.length > 0 ||
+              w.exercises.some((ex) =>
+                ex.sets.some(
+                  (s) =>
+                    s.completed || s.weightKg !== null || s.reps !== null,
+                ),
+              );
+            if (w.date >= todayIso && !hasLoggedWork) {
+              const aligned = createWorkoutSessionFromWeeklyPlan(plan, w.date);
+              const merged: WorkoutSession = {
+                ...aligned,
+                id: w.id,
+                sleepHours: w.sleepHours,
+                completed: w.completed,
+                completionStatus: w.completionStatus,
+                completedAt: w.completedAt,
+              };
+              await repo.upsertWorkout(merged);
+              syncedWorkouts.push(merged);
+            } else {
+              syncedWorkouts.push(w);
+            }
+          }
+          nextWorkouts = syncedWorkouts;
+        }
+
         const nextState: FitnessAppState = {
           ...current,
           weeklyPlan: plan,
+          workouts: nextWorkouts,
         };
         if (activeRepoRef.current === repo) {
           stateRef.current = nextState;
@@ -528,11 +576,13 @@ export function FitnessProvider({
         const existingWorkout = current.workouts.find((w) => w.date === date);
         const baseWorkout =
           existingWorkout ??
-          createWorkoutTemplateForDayType(
-            getDayTypeForDate(date),
-            date,
-            computeCurrentWeightKg(current),
-          );
+          (nextWeeklyPlan
+            ? createWorkoutSessionFromWeeklyPlan(nextWeeklyPlan, date)
+            : createWorkoutTemplateForDayType(
+                getDayTypeForDate(date),
+                date,
+                computeCurrentWeightKg(current),
+              ));
         const updatedWorkout: WorkoutSession = {
           ...baseWorkout,
           completed: status === 'completed',
