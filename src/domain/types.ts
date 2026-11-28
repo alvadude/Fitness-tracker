@@ -98,6 +98,8 @@ export interface ExerciseLog {
   name: string;
   equipment: 'barbell' | 'dumbbell' | 'bodyweight';
   defaultRestSec: 90 | 120 | 180;
+  suggestedWeightKg?: number;
+  notes?: string;
   sets: ExerciseSetLog[];
 }
 
@@ -132,6 +134,7 @@ export interface PlannedWorkoutExercise {
   equipment: string;
   sets: number;
   reps: string;
+  targetWeightKg?: number;
   notes?: string;
 }
 

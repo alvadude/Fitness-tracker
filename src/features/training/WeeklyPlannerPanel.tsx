@@ -15,6 +15,7 @@ import {
 import { useMemo, useState } from 'react';
 import {
   AVAILABLE_EQUIPMENT_OPTIONS,
+  convertPlannedDayToExercises,
   DEFAULT_EQUIPMENT,
 } from '../../domain/defaults';
 import {
@@ -23,7 +24,6 @@ import {
   parseIsoDateLocal,
 } from '../../domain/training';
 import type {
-  ExerciseLog,
   IsoDate,
   PlannedWorkoutDay,
   WeekdayIndex,
@@ -33,6 +33,7 @@ import { MealEstimatorError } from '../../services/ai/mealEstimator';
 import {
   buildOfflineSmartWeeklyPlan,
   generateWeeklyWorkoutPlan,
+  summarizeWorkoutHistoryForPlanner,
 } from '../../services/ai/workoutPlanner';
 import { useFitness } from '../../state/FitnessContext';
 
@@ -45,38 +46,6 @@ function getMondayStartForDate(isoDate: IsoDate): IsoDate {
   const day = date.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
   const diffToMonday = day === 0 ? -6 : 1 - day;
   return addDaysIsoDate(isoDate, diffToMonday);
-}
-
-function parseRepRange(repsRaw: string): [number, number] {
-  const rangeMatch = /(\d+)\s*[-–]\s*(\d+)/.exec(repsRaw);
-  if (rangeMatch) {
-    return [Number(rangeMatch[1]), Number(rangeMatch[2])];
-  }
-  const singleMatch = /(\d+)/.exec(repsRaw);
-  if (singleMatch) {
-    const n = Number(singleMatch[1]);
-    return [n, n];
-  }
-  return [8, 12];
-}
-
-function mapEquipmentType(
-  equipmentLabel: string,
-): 'barbell' | 'dumbbell' | 'bodyweight' {
-  const lower = equipmentLabel.toLowerCase();
-  if (lower.includes('barbell')) return 'barbell';
-  if (lower.includes('dumbbell') || lower.includes('kettlebell')) {
-    return 'dumbbell';
-  }
-  return 'bodyweight';
-}
-
-function slugifyExerciseId(name: string, index: number): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  return slug || `planned_ex_${index + 1}`;
 }
 
 export function WeeklyPlannerPanel({
@@ -122,6 +91,17 @@ export function WeeklyPlannerPanel({
   const [isGenerating, setIsGenerating] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [planStatus, setPlanStatus] = useState<string | null>(null);
+
+  const historySummary = useMemo(
+    () => summarizeWorkoutHistoryForPlanner(state.workouts, selectedDate),
+    [state.workouts, selectedDate],
+  );
+  const readyOverloadCount = useMemo(
+    () =>
+      historySummary.overloadEntries.filter((e) => e.readyForLoadIncrease)
+        .length,
+    [historySummary.overloadEntries],
+  );
 
   const mondayDate = useMemo(
     () => getMondayStartForDate(selectedDate),
@@ -170,6 +150,8 @@ export function WeeklyPlannerPanel({
         currentWeightKg,
         availableEquipment: selectedEquipment,
         preferences,
+        workouts: state.workouts,
+        referenceDate: selectedDate,
         modelPreference: state.settings.geminiModelPreference,
         apiKey: explicitKey ?? (geminiApiKey || undefined),
       });
@@ -210,6 +192,8 @@ export function WeeklyPlannerPanel({
       currentWeightKg,
       availableEquipment: selectedEquipment,
       preferences,
+      workouts: state.workouts,
+      referenceDate: selectedDate,
     });
     const preservedStatuses = state.weeklyPlan?.dailyStatusByDate ?? {};
     await saveWeeklyPlan({
@@ -251,23 +235,7 @@ export function WeeklyPlannerPanel({
     date: IsoDate,
   ) => {
     const existing = getOrCreateWorkoutForDate(date);
-    const convertedExercises: ExerciseLog[] = day.exercises.map((ex, idx) => {
-      const [minReps, maxReps] = parseRepRange(ex.reps);
-      return {
-        exerciseId: slugifyExerciseId(ex.name, idx),
-        name: ex.name,
-        equipment: mapEquipmentType(ex.equipment),
-        defaultRestSec: 90,
-        sets: Array.from({ length: Math.max(1, ex.sets) }, (_, sIdx) => ({
-          setNumber: sIdx + 1,
-          targetRepsMin: minReps,
-          targetRepsMax: maxReps,
-          weightKg: null,
-          reps: null,
-          completed: false,
-        })),
-      };
-    });
+    const convertedExercises = convertPlannedDayToExercises(day);
 
     await saveWorkout({
       ...existing,
@@ -394,6 +362,23 @@ export function WeeklyPlannerPanel({
             </p>
           </div>
         </div>
+
+        {historySummary.recentSessions.length > 0 && (
+          <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[11px] text-cyan-200 space-y-0.5">
+            <div className="font-semibold text-cyan-300">
+              Workout History &amp; Overload Synced ({historySummary.recentSessions.length}{' '}
+              recent session{historySummary.recentSessions.length === 1 ? '' : 's'})
+            </div>
+            <div>
+              {historySummary.musclesWorkedLast48h.length > 0
+                ? `Recent 48h muscles: ${historySummary.musclesWorkedLast48h.join(', ')} (will rest tomorrow: ${historySummary.tomorrowDayName}).`
+                : `Planning next starting ${historySummary.tomorrowDayName}.`}
+              {readyOverloadCount > 0
+                ? ` ${readyOverloadCount} progressive overload target${readyOverloadCount === 1 ? '' : 's'} ready.`
+                : ''}
+            </div>
+          </div>
+        )}
 
         <div className="space-y-1">
           <label
@@ -669,9 +654,17 @@ export function WeeklyPlannerPanel({
                             {ex.notes ? ` · ${ex.notes}` : ''}
                           </div>
                         </div>
-                        <span className="shrink-0 rounded-md bg-slate-800 px-2 py-0.5 font-semibold text-emerald-300">
-                          {ex.sets}×{ex.reps}
-                        </span>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {typeof ex.targetWeightKg === 'number' &&
+                            ex.targetWeightKg > 0 && (
+                              <span className="rounded-md bg-cyan-500/15 px-2 py-0.5 font-semibold text-cyan-300">
+                                {ex.targetWeightKg} kg
+                              </span>
+                            )}
+                          <span className="rounded-md bg-slate-800 px-2 py-0.5 font-semibold text-emerald-300">
+                            {ex.sets}×{ex.reps}
+                          </span>
+                        </div>
                       </li>
                     ))}
                   </ul>

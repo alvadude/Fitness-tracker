@@ -165,6 +165,12 @@ export function WorkoutLogger({
                       {exercise.sets[0].targetRepsMax}
                     </span>
                   )}
+                  {typeof exercise.suggestedWeightKg === 'number' &&
+                    exercise.suggestedWeightKg > 0 && (
+                      <span className="rounded-full border border-cyan-500/30 bg-cyan-500/15 px-2 py-0.5 font-semibold text-cyan-300">
+                        Target: {exercise.suggestedWeightKg} kg
+                      </span>
+                    )}
                   <span>
                     {completedSetsCount}/{exercise.sets.length} sets done
                   </span>
@@ -172,6 +178,11 @@ export function WorkoutLogger({
                     <span className="text-slate-500">· No prior log</span>
                   )}
                 </div>
+                {exercise.notes && (
+                  <p className="text-[11px] text-cyan-200/90">
+                    {exercise.notes}
+                  </p>
+                )}
               </div>
 
               <button

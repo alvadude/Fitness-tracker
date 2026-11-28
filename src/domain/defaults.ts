@@ -360,6 +360,10 @@ export function convertPlannedDayToExercises(
       name: ex.name,
       equipment: mapPlannedEquipment(ex.equipment),
       defaultRestSec: 90,
+      ...(typeof ex.targetWeightKg === 'number' && ex.targetWeightKg > 0
+        ? { suggestedWeightKg: ex.targetWeightKg }
+        : {}),
+      ...(ex.notes ? { notes: ex.notes } : {}),
       sets: makeEmptySets(Math.max(1, ex.sets), minReps, maxReps),
     };
   });

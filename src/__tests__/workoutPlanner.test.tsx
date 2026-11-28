@@ -3,9 +3,12 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import {
+  buildOfflineSmartWeeklyPlan,
   buildWeeklyWorkoutPrompt,
   parseWeeklyWorkoutPlanPayload,
+  summarizeWorkoutHistoryForPlanner,
 } from '../services/ai/workoutPlanner';
+import type { WorkoutSession } from '../domain/types';
 import { IndexedDbRepository } from '../services/storage';
 
 const MOCK_GEMINI_WEEKLY_PLAN = {
@@ -308,5 +311,126 @@ describe('AI Weekly Workout Planner, Equipment Checklist & Daily Status Ticks', 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.getByText('Lower Body Strength + Cardio')).toBeInTheDocument();
     expect(screen.getByText('Upper Body Push & Pull')).toBeInTheDocument();
+  });
+
+  it('uses recent workout history (e.g. Legs & Back today) for 48h recovery scheduling tomorrow and progressive overload targets', () => {
+    const legAndBackToday: WorkoutSession = {
+      id: 'workout-2026-11-28',
+      date: '2026-11-28', // Saturday
+      dayType: 'offday_sat_lower',
+      title: 'Saturday — Legs & Back',
+      completed: true,
+      completionStatus: 'completed',
+      cardio: [],
+      exercises: [
+        {
+          exerciseId: 'barbell_back_squat',
+          name: 'Barbell Back Squat',
+          equipment: 'barbell',
+          defaultRestSec: 180,
+          sets: [
+            { setNumber: 1, targetRepsMin: 6, targetRepsMax: 8, weightKg: 60, reps: 8, completed: true },
+            { setNumber: 2, targetRepsMin: 6, targetRepsMax: 8, weightKg: 60, reps: 8, completed: true },
+            { setNumber: 3, targetRepsMin: 6, targetRepsMax: 8, weightKg: 60, reps: 8, completed: true },
+            { setNumber: 4, targetRepsMin: 6, targetRepsMax: 8, weightKg: 60, reps: 8, completed: true },
+          ],
+        },
+        {
+          exerciseId: 'barbell_bent_over_row',
+          name: 'Barbell Bent-Over Row',
+          equipment: 'barbell',
+          defaultRestSec: 120,
+          sets: [
+            { setNumber: 1, targetRepsMin: 8, targetRepsMax: 10, weightKg: 50, reps: 10, completed: true },
+            { setNumber: 2, targetRepsMin: 8, targetRepsMax: 10, weightKg: 50, reps: 10, completed: true },
+            { setNumber: 3, targetRepsMin: 8, targetRepsMax: 10, weightKg: 50, reps: 10, completed: true },
+          ],
+        },
+      ],
+    };
+
+    const summary = summarizeWorkoutHistoryForPlanner(
+      [legAndBackToday],
+      '2026-11-28',
+    );
+    expect(summary.musclesWorkedToday).toContain('Legs');
+    expect(summary.musclesWorkedToday).toContain('Back');
+    expect(summary.tomorrowDayName).toBe('Sunday');
+    expect(summary.overloadEntries).toHaveLength(2);
+    expect(summary.overloadEntries[0].readyForLoadIncrease).toBe(true);
+    expect(summary.overloadEntries[0].suggestedWeightKg).toBe(62.5);
+    expect(summary.overloadEntries[1].suggestedWeightKg).toBe(52.5);
+
+    const prompt = buildWeeklyWorkoutPrompt({
+      profile: {
+        name: 'AJ',
+        age: 29,
+        sex: 'male',
+        heightCm: 175,
+        activityLevel: 'desk',
+        startWeightKg: 84,
+        startDate: '2026-11-24',
+        targetWeightKg: 65,
+        targetDate: '2027-06-15',
+        caffeineCutoffHour: 18,
+      },
+      targets: {
+        calories: 1900,
+        proteinG: 160,
+        carbsG: 180,
+        fatG: 60,
+        weekNumber: 1,
+      },
+      currentWeightKg: 84,
+      availableEquipment: ['Barbell & Plates', 'Squat Rack', 'Weight Bench', 'Adjustable Dumbbells'],
+      workouts: [legAndBackToday],
+      referenceDate: '2026-11-28',
+    });
+
+    expect(prompt).toContain('Today is Saturday (2026-11-28)');
+    expect(prompt).toContain('Sunday (2026-11-29)');
+    expect(prompt).toContain('Legs, Back');
+    expect(prompt).toContain('62.5 kg');
+    expect(prompt).toContain('52.5 kg');
+
+    // Offline smart plan also rotates tomorrow (Sunday) away from Legs & Back to Upper Push & Core
+    // and attaches 62.5 kg overload to Barbell Back Squat on Saturday
+    const offlinePlan = buildOfflineSmartWeeklyPlan({
+      profile: {
+        name: 'AJ',
+        age: 29,
+        sex: 'male',
+        heightCm: 175,
+        activityLevel: 'desk',
+        startWeightKg: 84,
+        startDate: '2026-11-24',
+        targetWeightKg: 65,
+        targetDate: '2027-06-15',
+        caffeineCutoffHour: 18,
+      },
+      targets: {
+        calories: 1900,
+        proteinG: 160,
+        carbsG: 180,
+        fatG: 60,
+        weekNumber: 1,
+      },
+      currentWeightKg: 84,
+      availableEquipment: ['Barbell & Plates', 'Squat Rack', 'Weight Bench', 'Adjustable Dumbbells'],
+      workouts: [legAndBackToday],
+      referenceDate: '2026-11-28',
+    });
+
+    const sunday = offlinePlan.days.find((d) => d.dayOfWeek === 0)!;
+    expect(sunday.focus).toContain('Upper Body Push & Core');
+    expect(
+      sunday.exercises.some((ex) => /row|squat|deadlift/i.test(ex.name)),
+    ).toBe(false);
+
+    const saturday = offlinePlan.days.find((d) => d.dayOfWeek === 6)!;
+    const squat = saturday.exercises.find((ex) =>
+      ex.name.includes('Barbell Back Squat'),
+    );
+    expect(squat?.targetWeightKg).toBe(62.5);
   });
 });

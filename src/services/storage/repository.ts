@@ -413,6 +413,14 @@ export function validateBackupPayload(raw: unknown): FitnessBackupPayload {
           ex.defaultRestSec === 180
             ? ex.defaultRestSec
             : 90,
+        ...(typeof ex.suggestedWeightKg === 'number' &&
+        Number.isFinite(ex.suggestedWeightKg) &&
+        ex.suggestedWeightKg > 0
+          ? { suggestedWeightKg: ex.suggestedWeightKg }
+          : {}),
+        ...(typeof ex.notes === 'string' && ex.notes.trim()
+          ? { notes: ex.notes.trim() }
+          : {}),
         sets,
       };
     });
@@ -611,6 +619,11 @@ export function validateBackupPayload(raw: unknown): FitnessBackupPayload {
                     ? Math.round(ex.sets)
                     : 3,
                 reps: typeof ex.reps === 'string' ? ex.reps : '8-12',
+                ...(typeof ex.targetWeightKg === 'number' &&
+                Number.isFinite(ex.targetWeightKg) &&
+                ex.targetWeightKg > 0
+                  ? { targetWeightKg: ex.targetWeightKg }
+                  : {}),
                 notes: typeof ex.notes === 'string' ? ex.notes : undefined,
               }))
           : [],
